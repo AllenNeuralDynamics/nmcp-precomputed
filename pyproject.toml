@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["nmcp"]
+
+[project]
+name = "nmcp"
+version = "1.0.0"
+description = "Neuron Morphology Community Portal Python Toolbox"
+license = { text = "MIT" }
+requires-python = ">=3.11"
+dependencies = [
+    "numpy",
+    "pandas",
+    "allensdk",
+    "cloud-volume",
+    "cloud-files"
+]

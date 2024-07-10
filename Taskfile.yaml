@@ -1,0 +1,33 @@
+version: '3'
+
+vars:
+  REPOSITORY: leapscientific
+  IMAGE: precomputed-worker
+  REPOIMAGE: "{{.REPOSITORY}}/{{.IMAGE}}"
+  VERSION:
+    sh: jq -r .version version.json
+  MAJOR:
+    sh: bash -c 'string={{.VERSION}} && arr=(${string//"."/ }) && echo ${arr[0]}'
+  MINOR:
+    sh: bash -c 'string={{.VERSION}} && arr=(${string//"."/ }) && echo ${arr[1]}'
+  REVISION:
+    sh: bash -c 'string={{.VERSION}} && arr=(${string//"."/ }) && echo ${arr[2]}'
+  IMAGEWITHVERSION: "{{.REPOIMAGE}}:{{.MAJOR}}"
+  IMAGEWITHMINORVERSION: "{{.IMAGEWITHVERSION}}.{{.MINOR}}"
+  IMAGEWITHREVERSION: "{{.IMAGEWITHMINORVERSION}}.{{.REVISION}}"
+  IMAGELATEST: "{{.REPOIMAGE}}:latest"
+
+tasks:
+  build:
+    cmds:
+      - docker build --platform linux/amd64 --tag {{.IMAGEWITHVERSION}} .
+      - docker tag {{.IMAGEWITHVERSION}} {{.IMAGEWITHMINORVERSION}}
+      - docker tag {{.IMAGEWITHMINORVERSION}} {{.IMAGEWITHREVERSION}}
+      - docker tag {{.IMAGEWITHREVERSION}} {{.IMAGELATEST}}
+  release:
+    cmds:
+      - task: build
+      - docker push {{.IMAGEWITHVERSION}}
+      - docker push {{.IMAGEWITHMINORVERSION}}
+      - docker push {{.IMAGEWITHREVERSION}}
+      - docker push {{.IMAGELATEST}}
