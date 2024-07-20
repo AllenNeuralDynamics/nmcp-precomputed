@@ -2,7 +2,7 @@ version: '3'
 
 vars:
   REPOSITORY: leapscientific
-  IMAGE: precomputed-worker
+  IMAGE: nmcp-precomputed-worker
   REPOIMAGE: "{{.REPOSITORY}}/{{.IMAGE}}"
   VERSION:
     sh: jq -r .version version.json
