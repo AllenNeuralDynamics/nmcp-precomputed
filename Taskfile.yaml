@@ -1,17 +1,17 @@
 version: '3'
 
 vars:
-  REPOSITORY: leapscientific
-  IMAGE: nmcp-precomputed-worker
+  REPOSITORY: ghcr.io
+  IMAGE: allenneuraldynamics/nmcp-precomputed-worker
   REPOIMAGE: "{{.REPOSITORY}}/{{.IMAGE}}"
   VERSION:
     sh: jq -r .version version.json
   MAJOR:
-    sh: bash -c 'string={{.VERSION}} && arr=(${string//"."/ }) && echo ${arr[0]}'
+    sh: string={{.VERSION}} && arr=(${string//"."/ }) && echo ${arr[0]}
   MINOR:
-    sh: bash -c 'string={{.VERSION}} && arr=(${string//"."/ }) && echo ${arr[1]}'
+    sh: string={{.VERSION}} && arr=(${string//"."/ }) && echo ${arr[1]}
   REVISION:
-    sh: bash -c 'string={{.VERSION}} && arr=(${string//"."/ }) && echo ${arr[2]}'
+    sh: string={{.VERSION}} && arr=(${string//"."/ }) && echo ${arr[2]}
   IMAGEWITHVERSION: "{{.REPOIMAGE}}:{{.MAJOR}}"
   IMAGEWITHMINORVERSION: "{{.IMAGEWITHVERSION}}.{{.MINOR}}"
   IMAGEWITHREVERSION: "{{.IMAGEWITHMINORVERSION}}.{{.REVISION}}"
