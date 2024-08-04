@@ -157,3 +157,6 @@ cython_debug/
 .idea/
 
 mouse_connectivity/
+
+# Taskfile.dist.yaml is used by the GitHub workflow.  Allow a local task file to push images to other hubs, etc.
+Taskfile.yaml
