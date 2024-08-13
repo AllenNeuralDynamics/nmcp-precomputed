@@ -4,7 +4,7 @@ from allensdk.core.mouse_connectivity_cache import MouseConnectivityCache
 
 from .segment_property import SegmentProperty
 
-_structure_id_lookup = MouseConnectivityCache(resolution=10).get_structure_tree()
+_structure_id_lookup = None
 
 _acronym_not_found = "none"
 
@@ -64,7 +64,11 @@ class SomaSegmentTagProperty(SegmentTagProperty):
 
 
 def _use_soma_lookup(soma_id: int | None) -> (str, str):
+    global _structure_id_lookup
+
     if soma_id is not None:
+        if _structure_id_lookup is None:
+            _structure_id_lookup = MouseConnectivityCache(resolution=10).get_structure_tree()
         structure = _structure_id_lookup.get_structures_by_id([soma_id])[0]
         if structure is not None:
             return structure["acronym"], structure["name"]

@@ -49,10 +49,10 @@ class RemoteDataClient:
             url=url,
             verify=True,
             retries=3,
-            headers={"Content-Type": "application/json", "Authorization": auth_key},
+            headers={"Content-Type": "application/json", "Authorization": auth_key}
         )
 
-        self._client = Client(transport=transport, fetch_schema_from_transport=True)
+        self._client = Client(transport=transport, fetch_schema_from_transport=False)
 
     def find_pending(self) -> list:
         pending = list()
