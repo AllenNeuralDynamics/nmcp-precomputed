@@ -29,4 +29,5 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Build and Push Docker Images
         run: |
+          chmod +x docker-entry.sh
           task release
