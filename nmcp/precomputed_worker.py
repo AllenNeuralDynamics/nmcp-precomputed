@@ -36,7 +36,7 @@ def process_pending(client: RemoteDataClient, output: str):
                 if pend.skeletonSegmentId in ids:
                     client.mark_generated(pend)
     except Exception as ex:
-        logger.error(ex)
+        logger.error("process error", None, ex, True)
 
     t1 = threading.Timer(30.0, process_pending, (client, output))
     t1.start()

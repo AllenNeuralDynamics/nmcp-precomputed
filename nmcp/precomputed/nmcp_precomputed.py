@@ -103,7 +103,7 @@ def extract_segment_properties(data: dict, segment_id: int, segment_properties: 
     label = (data["idString"])
 
     sample = data["sample"]
-    if sample is not None and sample["strain"] is not None:
+    if sample is not None and "strain" in sample and sample["strain"] is not None:
         strain = sample["strain"]
     else:
         strain = "unknown"
