@@ -10,14 +10,19 @@ logging.getLogger(__name__).setLevel(logging.DEBUG)
 
 logger = logging.getLogger(__name__)
 
+sanityCheckInterval: int = 2
+sanityCheckCount: int = 0
+
 
 def process_pending(client: RemoteDataClient, output: str):
+    global sanityCheckCount, sanityCheckInterval
+
     try:
         pending = client.find_pending()
 
-        logger.info(f"{len(pending)} pending precomputed entries")
-
         if len(pending) > 0:
+            logger.info(f"{len(pending)} pending precomputed entries")
+
             reconstructions = list()
 
             for pend in pending:
@@ -35,6 +40,13 @@ def process_pending(client: RemoteDataClient, output: str):
             for pend in pending:
                 if pend.skeletonSegmentId in ids:
                     client.mark_generated(pend)
+
+            sanityCheckCount = 0
+        else:
+            sanityCheckCount += 1
+            if sanityCheckCount >= sanityCheckInterval:
+                logger.info("There are no pending precomputed entries")
+                sanityCheckCount = 0
     except Exception as ex:
         logger.error("process error", None, ex, True)
 
