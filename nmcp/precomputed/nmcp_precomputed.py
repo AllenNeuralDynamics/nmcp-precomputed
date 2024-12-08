@@ -1,4 +1,5 @@
 import json
+import logging
 import pickle
 from typing import List
 
@@ -7,6 +8,8 @@ from cloudfiles import CloudFiles
 
 from .nmcp_skeleton import create_skeleton, vertex_attributes
 from .segment_info import SegmentInfo
+
+logger = logging.getLogger(__name__)
 
 
 def create_from_json(json_files: [], cloud_location: str):
@@ -18,6 +21,39 @@ def create_from_json(json_files: [], cloud_location: str):
             neurons.append(data["neurons"][0])
 
     create_from_dict(neurons, cloud_location)
+
+
+def create_from_data(neuron: dict, cloud_location: str) -> int:
+    cv = create_dataset_info(cloud_location)
+
+    cf = CloudFiles(cloud_location)
+
+    existing = cf.get("segment_properties/info.pickle")
+
+    if existing is not None:
+        segment_properties = pickle.loads(existing)
+    else:
+        segment_properties = SegmentInfo()
+
+    skeleton_id = None
+
+    if "skeleton_id" in neuron:
+        skeleton_id = neuron["skeleton_id"]
+    elif "idString" in neuron:
+        try:
+            skeleton_id = int(neuron["idString"][1:4])
+        except:
+            pass
+
+    if skeleton_id is not None:
+        try:
+            skeleton = load_from_dict(skeleton_id, neuron, segment_properties)
+            cv.skeleton.upload([skeleton])
+            create_segment_properties(cloud_location, segment_properties)
+        except Exception as ex:
+            logger.error("create_from_data error", None, ex, True)
+
+    return skeleton_id
 
 
 def create_from_dict(neurons: List[dict], cloud_location: str) -> List[int]:
@@ -52,7 +88,7 @@ def create_from_dict(neurons: List[dict], cloud_location: str) -> List[int]:
 
     cv.skeleton.upload(skeletons)
 
-    create_segment_properties(cloud_location, segment_properties)
+    create_segment_properties(cloud_location, segment_properties, True)
 
     return ids
 
@@ -112,8 +148,9 @@ def extract_segment_properties(data: dict, segment_id: int, segment_properties: 
 
 
 def create_segment_properties(cloud_location: str, segment_properties: SegmentInfo):
-    """ Once per dataset"""
-
+    """ One per dataset"""
     cf = CloudFiles(cloud_location)
+
     cf.put_json("segment_properties/info", segment_properties.as_dict())
+
     cf.put("segment_properties/info.pickle", pickle.dumps(segment_properties))

@@ -2,7 +2,7 @@ import argparse
 import logging
 import threading
 
-from nmcp import RemoteDataClient, create_from_dict
+from nmcp import RemoteDataClient, create_from_data
 
 logging.basicConfig(level=logging.WARNING)
 logging.getLogger("nmcp").setLevel(logging.DEBUG)
@@ -10,12 +10,15 @@ logging.getLogger(__name__).setLevel(logging.DEBUG)
 
 logger = logging.getLogger(__name__)
 
-sanityCheckInterval: int = 2
-sanityCheckCount: int = 0
+process_interval: int = 60       # seconds
+heartbeat_interval: int = 3600     # seconds
+
+heartbeat_count_limit: int = int(heartbeat_interval / process_interval)
+heartbeat_current_count: int = 0
 
 
 def process_pending(client: RemoteDataClient, output: str):
-    global sanityCheckCount, sanityCheckInterval
+    global heartbeat_current_count, heartbeat_count_limit
 
     try:
         pending = client.find_pending()
@@ -23,34 +26,39 @@ def process_pending(client: RemoteDataClient, output: str):
         if len(pending) > 0:
             logger.info(f"{len(pending)} pending precomputed entries")
 
-            reconstructions = list()
+            precomputed_id = None
+            reconstruction_id = None
+            data = None
 
             for pend in pending:
                 data = client.get_reconstruction_data(pend.reconstructionId)
                 if data is not None:
+                    precomputed_id = pend.id
+                    reconstruction_id = pend.reconstructionId
                     data["skeleton_id"] = pend.skeletonSegmentId
-                    reconstructions.append(data)
+                    break
 
-            logger.info(f"{len(reconstructions)} reconstructions with data available")
+            if data is not None:
+                logger.info(f"{reconstruction_id} with skeleton id {data['skeleton_id']} has data available")
 
-            ids = create_from_dict(reconstructions, output)
+                skeleton_id = create_from_data(data, f"{output}")
 
-            logger.info(f"{len(ids)} successfully processed")
+                if skeleton_id is not None:
+                    logger.info(f"{reconstruction_id} with skeleton id {skeleton_id} successfully processed")
+                    client.mark_generated(precomputed_id)
+            else:
+                logger.info("no pending reconstruction with data available")
 
-            for pend in pending:
-                if pend.skeletonSegmentId in ids:
-                    client.mark_generated(pend)
-
-            sanityCheckCount = 0
+            heartbeat_current_count = 0
         else:
-            sanityCheckCount += 1
-            if sanityCheckCount >= sanityCheckInterval:
+            heartbeat_current_count += 1
+            if heartbeat_current_count >= heartbeat_count_limit:
                 logger.info("There are no pending precomputed entries")
-                sanityCheckCount = 0
+                heartbeat_current_count = 0
     except Exception as ex:
         logger.error("process error", None, ex, True)
 
-    t1 = threading.Timer(30.0, process_pending, (client, output))
+    t1 = threading.Timer(5.0, process_pending, (client, output))
     t1.start()
 
 

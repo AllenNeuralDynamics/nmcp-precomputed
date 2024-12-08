@@ -64,8 +64,8 @@ class RemoteDataClient:
 
         return pending
 
-    def mark_generated(self, entry: PrecomputedEntry) -> None:
-        params = {"id": entry.id, "version": 1, "generatedAt": datetime.now().timestamp() * 1000}
+    def mark_generated(self, entry_id: str) -> None:
+        params = {"id": entry_id, "version": 1, "generatedAt": datetime.now().timestamp() * 1000}
         result = self._client.execute(mutation, variable_values=params)
 
     def get_reconstruction_data(self, reconstruction_id: str):
