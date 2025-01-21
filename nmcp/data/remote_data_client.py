@@ -1,10 +1,13 @@
 import json
+import logging
 from datetime import datetime
 
 from gql import Client, gql
 from gql.transport.requests import RequestsHTTPTransport
 
 from .precomputed_entry import PrecomputedEntry
+
+logger = logging.getLogger(__name__)
 
 query = gql(
     """
@@ -70,10 +73,14 @@ class RemoteDataClient:
 
     def get_reconstruction_data(self, reconstruction_id: str):
         params = {"id": reconstruction_id}
-        result = self._client.execute(reconstruction_data_query, variable_values=params)
-        if result and "reconstructionData" in result:
-            data = json.loads(result["reconstructionData"])
-            if "neurons" in data and len(data["neurons"]) > 0:
-                return data["neurons"][0]
+
+        try:
+            result = self._client.execute(reconstruction_data_query, variable_values=params)
+            if result and "reconstructionData" in result:
+                data = json.loads(result["reconstructionData"])
+                if "neurons" in data and len(data["neurons"]) > 0:
+                    return data["neurons"][0]
+        except Exception as ex:
+            logger.error(f"Error getting reconstruction data for {reconstruction_id}", None, ex, True)
 
         return None
