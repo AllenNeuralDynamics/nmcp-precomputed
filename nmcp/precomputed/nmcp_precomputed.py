@@ -5,14 +5,19 @@ from typing import List
 
 from cloudvolume import CloudVolume
 from cloudfiles import CloudFiles
+from osteoid import Skeleton
 
-from .nmcp_skeleton import create_skeleton, vertex_attributes
-from .segment_info import SegmentInfo
+from .nmcp_skeleton import create_skeleton, vertex_attributes, ReconstructionType
+from .segment_info import SegmentInfo, NmcpPropertyValues
 
 logger = logging.getLogger(__name__)
 
 
-def create_from_json(json_files: [], cloud_location: str):
+def create_from_json(json_files: [], cloud_location: str,
+                     reconstruction_type: ReconstructionType = ReconstructionType.ALL):
+    """
+    Convenience function for a list of JSON neuron files.  Primarily used for development and testing.
+    """
     neurons = list()
 
     for json_file in json_files:
@@ -20,44 +25,25 @@ def create_from_json(json_files: [], cloud_location: str):
             data = json.load(f)
             neurons.append(data["neurons"][0])
 
-    create_from_dict(neurons, cloud_location)
+    create_from_dict(neurons, cloud_location, reconstruction_type=reconstruction_type)
 
 
-def create_from_data(neuron: dict, cloud_location: str) -> int:
-    cv = create_dataset_info(cloud_location)
+def create_from_data(neuron: dict, cloud_location: str, preferred_id: int = None,
+                     reconstruction_type: ReconstructionType = ReconstructionType.ALL) -> int:
+    """
+    Add an individual neuron to the precomputed dataset.
+    """
+    ids = create_from_dict([neuron], cloud_location, [preferred_id], reconstruction_type)
 
-    cf = CloudFiles(cloud_location)
-
-    existing = cf.get("segment_properties/info.pickle")
-
-    if existing is not None:
-        segment_properties = pickle.loads(existing)
-    else:
-        segment_properties = SegmentInfo()
-
-    skeleton_id = None
-
-    if "skeleton_id" in neuron:
-        skeleton_id = neuron["skeleton_id"]
-    elif "idString" in neuron:
-        try:
-            skeleton_id = int(neuron["idString"][1:4])
-        except:
-            pass
-
-    if skeleton_id is not None:
-        try:
-            skeleton = load_from_dict(skeleton_id, neuron, segment_properties)
-            cv.skeleton.upload([skeleton])
-            create_segment_properties(cloud_location, segment_properties)
-        except Exception as ex:
-            logger.error("create_from_data error", None, ex, True)
-
-    return skeleton_id
+    return ids[0] if len(ids) > 0 else None
 
 
-def create_from_dict(neurons: List[dict], cloud_location: str) -> List[int]:
-    cv = create_dataset_info(cloud_location)
+def create_from_dict(neurons: List[dict], cloud_location: str, preferred_ids: List[int] = None,
+                     reconstruction_type: ReconstructionType = ReconstructionType.ALL) -> List[int]:
+    """
+    Add one or more neurons to the precomputed dataset.
+    """
+    cv = _create_dataset_info(cloud_location)
 
     skeletons = list()
 
@@ -66,40 +52,82 @@ def create_from_dict(neurons: List[dict], cloud_location: str) -> List[int]:
     existing = cf.get("segment_properties/info.pickle")
 
     if existing is not None:
-        segment_properties = pickle.loads(existing)
+        segment_info = pickle.loads(existing)
     else:
-        segment_properties = SegmentInfo()
+        segment_info = SegmentInfo()
 
     ids = list()
 
-    for neuron in neurons:
+    for idx, neuron in enumerate(neurons):
         skeleton_id = None
-        if "skeletonId" in neuron:
-            skeleton_id = neuron["skeletonId"]
+        # For the NMCP portal worker, an assigned skeleton id will be pass directly.  For other uses or testing,
+        # fall back to parsing the idString with the assumptions is in the N#### format.  If that fails, skip.
+        # This is not a general purpose loader/generator.
+        if preferred_ids is not None and len(preferred_ids) > idx and preferred_ids[idx] is not None:
+            skeleton_id = preferred_ids[idx]
         elif "idString" in neuron:
             try:
                 skeleton_id = int(neuron["idString"][1:4])
             except:
-                pass
+                pass  # Ok to fail for some unsupported skeleton id interpretation.
 
         if skeleton_id is not None:
-            skeletons.append(load_from_dict(skeleton_id, neuron, segment_properties))
-            ids.append(skeleton_id)
+            try:
+                # TODO: Could be left in an odd state if the skeleton is created but segment_info append fails.
+                skeleton, properties = _load_from_dict(skeleton_id, neuron, reconstruction_type)
+                skeletons.append(skeleton)
+                segment_info.append(skeleton_id, properties)
+                ids.append(skeleton_id)
+            except:
+                logger.error(f"Could not load skeleton {skeleton_id}", None, exc_info=True)
 
     cv.skeleton.upload(skeletons)
 
-    create_segment_properties(cloud_location, segment_properties, True)
+    _create_segment_properties(cloud_location, segment_info)
 
     return ids
 
 
-def load_from_dict(skeleton_id: int, data: dict, segment_properties: SegmentInfo):
-    sk = create_skeleton(skeleton_id, data)
-    extract_segment_properties(data, sk.id, segment_properties)
-    return sk
+def remove_skeleton(skeleton_id: int, cloud_location: str) -> bool:
+    cf = CloudFiles(cloud_location)
+
+    existing = cf.get("segment_properties/info.pickle")
+
+    if existing is None:
+        return False
+
+    segment_info = pickle.loads(existing)
+
+    segment_info.remove(skeleton_id)
+
+    _create_segment_properties(cloud_location, segment_info)
+
+    cf.delete(f"skeleton/{skeleton_id}")
+
+    return True
 
 
-def create_dataset_info(cloud_location: str) -> CloudVolume:
+def list_skeletons(cloud_location: str) -> List[int]:
+    cf = CloudFiles(cloud_location)
+
+    existing = cf.get("segment_properties/info.pickle")
+
+    if existing is None:
+        return []
+
+    segment_info = pickle.loads(existing)
+
+    return segment_info.ids
+
+
+def _load_from_dict(skeleton_id: int, data: dict, reconstruction_type: ReconstructionType) -> (Skeleton,
+                                                                                               NmcpPropertyValues):
+    sk = create_skeleton(skeleton_id, data, reconstruction_type)
+    values = _extract_segment_properties(data)
+    return sk, values
+
+
+def _create_dataset_info(cloud_location: str) -> CloudVolume:
     """ Once per dataset """
     info = CloudVolume.create_new_info(
         num_channels=1,
@@ -133,7 +161,7 @@ def create_dataset_info(cloud_location: str) -> CloudVolume:
     return cv
 
 
-def extract_segment_properties(data: dict, segment_id: int, segment_properties: SegmentInfo):
+def _extract_segment_properties(data: dict) -> NmcpPropertyValues:
     soma_allen_id = data["soma"]["allenId"]
 
     label = (data["idString"])
@@ -144,13 +172,17 @@ def extract_segment_properties(data: dict, segment_id: int, segment_properties: 
     else:
         strain = "unknown"
 
-    segment_properties.append(segment_id, label, strain, soma_allen_id)
+    # segment_property_info.append(segment_id, label, strain, soma_allen_id)
+    return NmcpPropertyValues(label, strain, soma_allen_id)
 
 
-def create_segment_properties(cloud_location: str, segment_properties: SegmentInfo):
+def _create_segment_properties(cloud_location: str, segment_property_info: SegmentInfo):
     """ One per dataset"""
     cf = CloudFiles(cloud_location)
 
-    cf.put_json("segment_properties/info", segment_properties.as_dict())
+    # The required precomputed segment properties info file.
+    cf.put_json("segment_properties/info", segment_property_info.as_dict())
 
-    cf.put("segment_properties/info.pickle", pickle.dumps(segment_properties))
+    # Stash the internal representation of the segment properties info for additional context that would need to be
+    # rebuilt if deserializing `info`.
+    cf.put("segment_properties/info.pickle", pickle.dumps(segment_property_info))

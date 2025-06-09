@@ -8,8 +8,13 @@ class SegmentProperty:
     def append(self, value) -> None:
         self.values.append(value)
 
+    def remove(self, index: int) -> None:
+        if index < len(self.values):
+            del self.values[index]
+
     def update(self, index, value):
-        self.values[index] = value
+        if index < len(self.values):
+            self.values[index] = value
 
     def as_dict(self) -> dict:
         property_desc = {

@@ -30,6 +30,12 @@ class SegmentTagProperty(SegmentProperty):
 
         self.descriptions[index] = tag_description
 
+    def remove_tag(self, index: int):
+        super(SegmentTagProperty, self).remove(index)
+
+        if index < len(self.descriptions):
+            del self.descriptions[index]
+
     def as_dict(self) -> dict:
         property_desc = super(SegmentTagProperty, self).as_dict()
 
@@ -61,6 +67,9 @@ class SomaSegmentTagProperty(SegmentTagProperty):
 
     def update_soma(self, index: int, soma_id: int | None):
         self.update_tag(index, *_use_soma_lookup(soma_id))
+
+    def remove_soma(self, index: int):
+        self.remove_tag(index)
 
 
 def _use_soma_lookup(soma_id: int | None) -> (str, str):

@@ -1,7 +1,8 @@
 import os
 import pickle
+from pathlib import Path
 
-from nmcp import SegmentInfo
+from nmcp import SegmentInfo, NmcpPropertyValues
 
 _test_structure_1 = {"acronym": "mlf",
                      "graph_id": 1,
@@ -30,12 +31,16 @@ _test_structure_3 = {'acronym': 'SEZ',
                      'structure_set_ids': [10, 184527634, 691663206],
                      'rgb_triplet': [170, 170, 170]}
 
+_properties_1 = NmcpPropertyValues(label="N001-609281", strain="unknown 1", soma_id=_test_structure_1["id"])
+_properties_2 = NmcpPropertyValues(label="N002-609281", strain="unknown 2", soma_id=_test_structure_2["id"])
+_properties_3 = NmcpPropertyValues(label="N003-609281", strain="unknown 3", soma_id=_test_structure_3["id"])
+
 
 def test_segment_info():
     s = SegmentInfo()
 
-    s.append(998, "N001-609281", "unknown 1", _test_structure_1["id"])
-    s.append(999, "N002-609281", "unknown 2", _test_structure_2["id"])
+    s.append(998, _properties_1)
+    s.append(999, _properties_2)
 
     _validate_segment_info(s)
 
@@ -43,19 +48,19 @@ def test_segment_info():
 def test_segment_info_update():
     s = SegmentInfo()
 
-    s.append(998, "N001-609281", "unknown 1", _test_structure_1["id"])
-    s.append(999, "N002-609281", "unknown 2", _test_structure_2["id"])
+    s.append(998, _properties_1)
+    s.append(999, _properties_2)
 
     _validate_segment_info(s)
 
     # Should have no effect.
-    s.append(998, "N001-609281", "unknown 1", _test_structure_1["id"])
-    s.append(999, "N002-609281", "unknown 2", _test_structure_2["id"])
+    s.append(998, _properties_1)
+    s.append(999, _properties_2)
 
     _validate_segment_info(s)
 
     # Make changes
-    s.append(999, "N003-609281", "unknown 3", _test_structure_3["id"])
+    s.append(999, _properties_3)
 
     info = s.as_dict()
 
@@ -84,14 +89,15 @@ def test_segment_info_update():
 
 
 def test_segment_info_load_and_append():
-    with open(os.path.join("tests", "fixtures", "segment_info.pickle"), "rb") as input_file:
+    source = Path(__file__).parent.joinpath("fixtures").joinpath("segment_info.pickle")
+    with open(source, "rb") as input_file:
         s = pickle.loads(input_file.read())
 
     assert s is not None
 
     _validate_segment_info(s)
 
-    s.append(997, "N003-609281", "unknown 3", _test_structure_3["id"])
+    s.append(997, _properties_3)
 
     info = s.as_dict()
 
@@ -117,6 +123,39 @@ def test_segment_info_load_and_append():
     assert tags["tags"][new_index] == _test_structure_3["acronym"]
     assert len(tags["tag_descriptions"]) == 3
     assert tags["tag_descriptions"][new_index] == _test_structure_3["name"]
+
+
+def test_segment_info_remove():
+    source = Path(__file__).parent.joinpath("fixtures").joinpath("segment_info.pickle")
+    with open(source, "rb") as input_file:
+        s = pickle.loads(input_file.read())
+
+    s.append(997, _properties_3)
+
+    assert len(s.ids) == 3
+
+    to_remove = s.ids[1]
+
+    s.remove(to_remove)
+
+    assert len(s.ids) == 2
+
+    assert s.ids == [998, 997]
+    assert s.labels.values == ["N001-609281", "N003-609281"]
+    assert s.strains.values == ["unknown 1", "unknown 3"]
+    assert s.tags.values == [_test_structure_1["acronym"], _test_structure_3["acronym"]]
+    assert s.tags.descriptions == [_test_structure_1["name"], _test_structure_3["name"]]
+
+    info = s.as_dict()
+
+    tags = info["inline"]["properties"][2]
+    # Not in the same order as original 's' due to arguments to numpy.unique in segment_info.
+    assert tags["values"][0] == [1]
+    assert tags["values"][1] == [0]
+    assert tags["tags"][0] == _test_structure_3["acronym"]
+    assert tags["tags"][1] == _test_structure_1["acronym"]
+    assert tags["tag_descriptions"][0] == _test_structure_3["name"]
+    assert tags["tag_descriptions"][1] == _test_structure_1["name"]
 
 
 def _validate_segment_info(s: SegmentInfo):
@@ -155,7 +194,7 @@ def _validate_segment_info(s: SegmentInfo):
     assert tags["id"] == "tags"
     assert tags["type"] == "tags"
     assert len(tags["values"]) == 2
-    # Not in order of added because of arguments to numpy.unique in segment_info
+    # Not in the same order as original 's' due to arguments to numpy.unique in segment_info.
     assert tags["values"][0] == [1]
     assert tags["values"][1] == [0]
     assert len(tags["tags"]) == 2
