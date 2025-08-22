@@ -4,7 +4,7 @@ import logging
 import os.path
 import sys
 
-from nmcp import create_from_json
+from nmcp import create_from_json_files
 
 logging.basicConfig(level=logging.WARNING)
 
@@ -22,7 +22,7 @@ def main():
     else:
         input_files = [args.input]
 
-    create_from_json(input_files, args.output)
+    create_from_json_files(input_files, args.output)
 
     return True
 

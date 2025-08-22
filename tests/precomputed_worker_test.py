@@ -1,7 +1,7 @@
 import argparse
 import logging
 
-from nmcp import RemoteDataClient, create_from_data
+from nmcp import RemoteDataClient, create_from_dict
 
 logging.basicConfig(level=logging.WARNING)
 logging.getLogger("nmcp").setLevel(logging.DEBUG)
@@ -14,7 +14,7 @@ def process(client: RemoteDataClient, output: str, reconstruction: str):
     try:
         data = client.get_reconstruction_data(reconstruction)
         if data is not None:
-            skeleton_id = create_from_data(data, output)
+            skeleton_id = create_from_dict(data, output)
             logger.info(f"with skeleton id {skeleton_id} successfully processed")
     except Exception as ex:
         logger.error("process error", None, ex, True)

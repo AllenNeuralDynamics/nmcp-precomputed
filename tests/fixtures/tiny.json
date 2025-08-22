@@ -1,0 +1,115 @@
+{
+    "comment": "",
+    "neurons": [
+        {
+            "idString": "N100-609281-JR",
+            "DOI": null,
+            "sample": null,
+            "label": null,
+            "annotationSpace": {
+                "version": 3,
+                "description": "Annotation Space: CCFv3.0 Axes> X: Anterior-Posterior; Y: Inferior-Superior; Z:Left-Right"
+            },
+            "soma": {
+                "x": 11736.502639770508,
+                "y": 6561.916580200195,
+                "z": 3792.9841232299805,
+                "allenId": 437
+            },
+            "axon": [
+                {
+                    "sampleNumber": 1,
+                    "structureIdentifier": 1,
+                    "x": 11736.502639770508,
+                    "y": 6561.916580200195,
+                    "z": 3792.9841232299805,
+                    "radius": 1.0,
+                    "parentNumber": -1,
+                    "allenId": 437
+                },
+                {
+                    "sampleNumber": 2,
+                    "structureIdentifier": 2,
+                    "x": 11723.38687133789,
+                    "y": 6568.796203613281,
+                    "z": 3802.5388412475586,
+                    "radius": 1.0,
+                    "parentNumber": 1,
+                    "allenId": 437
+                },
+                {
+                    "sampleNumber": 3,
+                    "structureIdentifier": 2,
+                    "x": 11717.069732666016,
+                    "y": 6575.9144287109375,
+                    "z": 3804.820411682129,
+                    "radius": 1.0,
+                    "parentNumber": 2,
+                    "allenId": 437
+                }
+            ],
+            "dendrite": [
+                {
+                    "sampleNumber": 1,
+                    "structureIdentifier": 1,
+                    "x": 11736.502639770508,
+                    "y": 6561.916580200195,
+                    "z": 3792.9841232299805,
+                    "radius": 1.0,
+                    "parentNumber": -1,
+                    "allenId": 445
+                },
+                {
+                    "sampleNumber": 2,
+                    "structureIdentifier": 3,
+                    "x": 11726.786529541016,
+                    "y": 6569.44775390625,
+                    "z": 3805.0508193969727,
+                    "radius": 1.0,
+                    "parentNumber": 1,
+                    "allenId": 445
+                },
+                {
+                    "sampleNumber": 3,
+                    "structureIdentifier": 3,
+                    "x": 11720.885192871094,
+                    "y": 6575.60009765625,
+                    "z": 3809.9626235961914,
+                    "radius": 1.0,
+                    "parentNumber": 2,
+                    "allenId": 445
+                },
+                {
+                    "sampleNumber": 4,
+                    "structureIdentifier": 3,
+                    "x": 11704.934371948242,
+                    "y": 6574.143371582031,
+                    "z": 3813.3518600463867,
+                    "radius": 1.0,
+                    "parentNumber": 3,
+                    "allenId": 445
+                }
+            ],
+            "allenInformation": [
+                {
+                    "allenId": 437,
+                    "name": "Spinal nucleus of the trigeminal, interpolar part",
+                    "safeName": "Spinal nucleus of the trigeminal, interpolar part",
+                    "acronym": "SPVI",
+                    "graphOrder": 955,
+                    "structureIdPath": "/997/8/343/1065/354/386/437/",
+                    "colorHex": "FFA5D2"
+                },
+                {
+                    "allenId": 445,
+                    "name": "Spinal nucleus of the trigeminal, oral part",
+                    "safeName": "Spinal nucleus of the trigeminal, oral part",
+                    "acronym": "SPVO",
+                    "graphOrder": 956,
+                    "structureIdPath": "/997/8/343/1065/354/386/445/",
+                    "colorHex": "FFA5D2"
+                }
+            ]
+        }
+    ]
+}
