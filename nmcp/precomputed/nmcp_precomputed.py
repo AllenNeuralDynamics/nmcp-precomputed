@@ -49,7 +49,7 @@ def create_from_data(axon: SkeletonComponents, dendrite: SkeletonComponents, pro
         logger.error("could not create dataset", None, exc_info=False)
         return
 
-        # remove_skeleton(cloud_location, skeleton_id)
+    # remove_skeleton(cloud_location, skeleton_id)
 
     try:
         cf = CloudFiles(cloud_location)
@@ -57,15 +57,11 @@ def create_from_data(axon: SkeletonComponents, dendrite: SkeletonComponents, pro
         logger.error("could not create cloud files", None, exc_info=False)
         return
 
-        # remove_skeleton(cloud_location, skeleton_id)
-
     try:
         existing = cf.get("segment_properties/info.pickle")
     except Exception as ex:
         logger.error("could not ask for get segment info", None, exc_info=False)
         return
-
-        # remove_skeleton(cloud_location, skeleton_id)
 
     try:
         if existing is not None:
@@ -76,8 +72,6 @@ def create_from_data(axon: SkeletonComponents, dendrite: SkeletonComponents, pro
         logger.error("could not get segment info", None, exc_info=False)
         return
 
-        # remove_skeleton(cloud_location, skeleton_id)
-
     try:
         # TODO: Could be left in an odd state if the skeleton is created but segment_info append fails.
         skeleton = create_skeleton(skeleton_id, axon, dendrite)
@@ -85,23 +79,17 @@ def create_from_data(axon: SkeletonComponents, dendrite: SkeletonComponents, pro
         logger.error("could not create skeleton", None, exc_info=False)
         return
 
-        # remove_skeleton(cloud_location, skeleton_id)
-
     try:
         segment_info.append(skeleton_id, properties)
     except Exception as ex:
         logger.error("could not append segment info", None, exc_info=False)
         return
 
-        # remove_skeleton(cloud_location, skeleton_id)
-
     try:
         cv.skeleton.upload(skeleton)
     except Exception as ex:
         logger.error("could not upload skeleton", None, exc_info=False)
         return
-
-        # remove_skeleton(cloud_location, skeleton_id)
 
     try:
         _create_segment_properties(cloud_location, segment_info)
