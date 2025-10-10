@@ -43,11 +43,7 @@ def create_from_data(axon: SkeletonComponents, dendrite: SkeletonComponents, pro
     """
     Add one or more neurons to the precomputed dataset.
     """
-    try:
-        cv = _create_dataset_info(cloud_location)
-    except Exception as ex:
-        logger.error("could not create dataset", None, exc_info=False)
-        return
+    cv = _create_dataset_info(cloud_location)
 
     # remove_skeleton(cloud_location, skeleton_id)
 
