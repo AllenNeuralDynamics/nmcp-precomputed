@@ -21,7 +21,7 @@ def load_reconstruction(client: RemoteDataClient, pending: PrecomputedEntry):
     header_data = client.get_reconstruction_header(pending.reconstructionId)
 
     reconstruction_id = pending.reconstructionId
-    skeleton_id = pending.skeletonSegmentId
+    skeleton_id = pending.skeletonId
 
     if header_data is None or reconstruction_id is None or skeleton_id is None:
         return None
@@ -155,18 +155,18 @@ def process_pending(client: RemoteDataClient, output: str):
                     reconstruction = load_reconstruction(client, pend)
 
                     if reconstruction is None:
-                        client.mark_failed(pend.id)
+                        client.mark_failed_load(pend.id)
                         continue
 
                     axon_components, dendrite_components, properties = reconstruction
 
-                    save_reconstruction(output, pend.skeletonSegmentId, properties, axon_components,
+                    save_reconstruction(output, pend.skeletonId, properties, axon_components,
                                         dendrite_components)
 
                     client.mark_generated(pend.id)
                 except Exception as ex:
                     logger.error("error", None, ex, True)
-                    client.mark_failed(pend.id)
+                    client.mark_failed_generate(pend.id)
 
             heartbeat_current_count = 0
         else:
