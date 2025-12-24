@@ -17,12 +17,12 @@ def main():
 
     client = RemoteDataClient(args.url, args.authkey)
 
-    pending = client.find_pending()
+    pending = client.find_atlas_pending()
 
     print(pending)
 
     for pend in pending:
-        data = client.get_reconstruction_data(pend.reconstructionId)
+        data = client.get_atlas_reconstruction_data(pend.reconstructionId)
         data["skeleton_id"] = pend.skeletonSegmentId
         create_from_dict(data, args.output)
 

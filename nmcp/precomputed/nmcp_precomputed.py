@@ -13,6 +13,16 @@ from .segment_info import SegmentInfo, NmcpPropertyValues
 logger = logging.getLogger(__name__)
 
 
+def ensure_bucket_folders(cloud_location: str):
+    try:
+        cf = CloudFiles(cloud_location)
+        cf.touch("full/temp.txt")
+        cf.touch("axon/temp.txt")
+        cf.touch("dendrite/temp.txt")
+    except Exception as ex:
+        logger.error("could not create bucket folders", None, exc_info=False)
+
+
 def create_from_json_files(json_files: [], cloud_location: str):
     """
     Convenience function for a list of JSON neuron files.  Primarily used for development and testing.
@@ -165,7 +175,10 @@ def _create_dataset_info(cloud_location: str) -> CloudVolume:
 
 
 def extract_neuron_properties(data: dict) -> NmcpPropertyValues:
-    soma_allen_id = data["soma"]["allenId"]
+    if "allenId" in data["soma"]:
+        soma_allen_id = data["soma"]["allenId"]
+    else:
+        soma_allen_id = None
 
     label = (data["idString"])
 

@@ -18,13 +18,53 @@ process (and assume the default configuration of port 9000 for MinIO).  For addi
 documentation, [cloud-files](https://github.com/seung-lab/cloud-files), and 
 [cloud-volume](https://github.com/seung-lab/cloud-volume).
 
-* Install the MinIO command line tool, `mc`
-* Use `mc` or the web interface at http://localhost:9001 to create a bucket
-* Use `mc` to set the bucket to public access (this portion is for Neuroglancer viewing, not required for precomputed generation)
-* With the Python environment for this project active (which should mean the cloud-files command line interface is available):
-  * Add an alias for your instance: `cloudfiles alias add minio s3://http://127.0.0.1:9000/`
-* When running the precomputed worker, pass the alias as the precomputed output argument, _e.g._,
-  * `-o minio://<your_bucket>/ngv01`
+A preconfigured instance is defined in `docker-compose.yml` that can be started with the following script
+
+```bash
+docker compose -p nmcp up -d
+```
+
+Attach to the running container to configure the precomputed bucket.
+
+Find the container id
+```bash
+docker ps
+```
+
+Attach to the instance
+```bash
+docker exec -it <container-id> /bin/bash
+```
+
+Define an `mc` alias for the server, create the bucket, and allow public access for the Neuroglancer viewer.  The 
+following assumes the username/password defined in `docker-compose.yml`.  This is performed in the container after
+attaching above, not on the host (unless you choose to install the `mc` tools on your host machine).
+```bash
+mc alias set myminio http://localhost:9000 minio_root_user minio_root_password
+mc mb myminio/aind-neuron-morphology-community-portal-local/ngv01/
+mc anonymous set public myminio/aind-neuron-morphology-community-portal-local/ngv01
+```
+
+Exit the container instance.  On the host (in the Python environment created for this project w/cloud-files installed),
+create an alias for the server.
+
+```bash
+cloudfiles alias add minio s3://http://127.0.0.1:9000/
+```
+
+Add the username and password as a secrets file in `~/.cloudvolume/secrets/minio-secret.json` (assumes defaults used
+in the compose file).
+```json
+{
+	"AWS_ACCESS_KEY_ID": "minio_root_user",
+	"AWS_SECRET_ACCESS_KEY": "minio_root_password"
+}
+```
+
+Although the bucket is set for public access in this development example, adding the authentication when generating
+the precomputed data mimics the typical behavior in actual deployments.
+
+When running the precomputed worker, pass the alias as the precomputed output argument, _e.g._, `-o minio://aind-neuron-morphology-community-portal-local/ngv01`
 
 Here the current standard path is used as the base location (`ngv01`), however anything can used so long as it is also
 used in the `NMCP_PRECOMPUTED` environment variable for `nmcp-client`.

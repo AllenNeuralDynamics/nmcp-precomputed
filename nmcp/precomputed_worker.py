@@ -2,7 +2,8 @@ import argparse
 import logging
 import threading
 
-from nmcp import RemoteDataClient, create_from_data, extract_neuron_properties, SkeletonComponents, PrecomputedEntry
+from nmcp import (RemoteDataClient, ensure_bucket_folders, create_from_data, extract_neuron_properties,
+                  SkeletonComponents, PrecomputedEntry)
 
 logging.basicConfig(level=logging.WARNING)
 logging.getLogger("nmcp").setLevel(logging.DEBUG)
@@ -16,6 +17,25 @@ heartbeat_interval: int = 3600  # seconds
 heartbeat_count_limit: int = int(heartbeat_interval / process_interval)
 heartbeat_current_count: int = 0
 
+def load_specimen_space_reconstruction(client: RemoteDataClient, pending: PrecomputedEntry):
+    reconstruction_id = pending.reconstructionId
+    skeleton_id = pending.skeletonId
+
+    data = client.get_specimen_space_reconstruction_data(reconstruction_id)
+
+    try:
+        # Extract properties once from header
+        properties = extract_neuron_properties(data)
+
+        axon_components = SkeletonComponents.create(data["axon"])
+
+        dendrite_components = SkeletonComponents.create(data["dendrite"])
+
+        return axon_components, dendrite_components, properties
+
+    except Exception as ex:
+        logger.error(f"error loading specimen space reconstruction {reconstruction_id}: {ex}")
+        return None
 
 def load_reconstruction(client: RemoteDataClient, pending: PrecomputedEntry):
     header_data = client.get_reconstruction_header(pending.reconstructionId)
@@ -126,8 +146,11 @@ def load_reconstruction(client: RemoteDataClient, pending: PrecomputedEntry):
         logger.error(f"error loading reconstruction {reconstruction_id}: {ex}")
         return None
 
+def save_specimen_precomputed(output, skeleton_id, properties, axon_components, dendrite_components):
+    logger.info(f"creating specimen space precomputed skeleton {skeleton_id}")
+    create_from_data(axon_components, dendrite_components, properties, f"{output}/specimen", skeleton_id)
 
-def save_reconstruction(output, skeleton_id, properties, axon_components, dendrite_components):
+def save_atlas_precomputed(output, skeleton_id, properties, axon_components, dendrite_components):
     # Create the full reconstruction (both axon and dendrite)
     logger.info(f"creating full reconstruction for skeleton {skeleton_id}")
     create_from_data(axon_components, dendrite_components, properties, f"{output}/full", skeleton_id)
@@ -144,46 +167,91 @@ def save_reconstruction(output, skeleton_id, properties, axon_components, dendri
 def process_pending(client: RemoteDataClient, output: str):
     global heartbeat_current_count, heartbeat_count_limit
 
+    processed_atlas = process_atlas_pending(client, output)
+    processed_specimen = process_specimen_pending(client, output)
+
+    if processed_atlas or processed_specimen:
+        heartbeat_current_count = 0
+    else:
+        heartbeat_current_count += 1
+        if heartbeat_current_count >= heartbeat_count_limit:
+            logger.info("There are no pending precomputed entries")
+            heartbeat_current_count = 0
+
+    t1 = threading.Timer(process_interval, process_pending, (client, output))
+    t1.start()
+
+
+def process_specimen_pending(client: RemoteDataClient, output: str) -> bool:
     try:
-        pending = client.find_pending()
+        pending = client.find_specimen_space_pending()
 
         if len(pending) > 0:
-            logger.info(f"{len(pending)} pending precomputed entries")
+            logger.info(f"{len(pending)} pending specimen space precomputed entries")
+
+            for pend in pending:
+                try:
+                    reconstruction = load_specimen_space_reconstruction(client, pend)
+
+                    if reconstruction is None:
+                        client.mark_specimen_failed_load(pend.id)
+                        continue
+
+                    axon_components, dendrite_components, properties = reconstruction
+
+                    save_specimen_precomputed(output, pend.skeletonId, properties, axon_components,
+                                           dendrite_components)
+
+                    client.mark_specimen_generated(pend.id)
+                except Exception as ex:
+                    logger.error("error", None, ex, True)
+                    client.mark_specimen_failed_generate(pend.id)
+
+            return True
+    except Exception as ex:
+        logger.error("process error", None, ex, True)
+
+    return False
+
+
+def process_atlas_pending(client: RemoteDataClient, output: str) -> bool:
+    try:
+        pending = client.find_atlas_pending()
+
+        if len(pending) > 0:
+            logger.info(f"{len(pending)} pending atlas precomputed entries")
 
             for pend in pending:
                 try:
                     reconstruction = load_reconstruction(client, pend)
 
                     if reconstruction is None:
-                        client.mark_failed_load(pend.id)
+                        client.mark_atlas_failed_load(pend.id)
                         continue
 
                     axon_components, dendrite_components, properties = reconstruction
 
-                    save_reconstruction(output, pend.skeletonId, properties, axon_components,
-                                        dendrite_components)
+                    save_atlas_precomputed(output, pend.skeletonId, properties, axon_components,
+                                           dendrite_components)
 
-                    client.mark_generated(pend.id)
+                    client.mark_atlas_generated(pend.id)
                 except Exception as ex:
                     logger.error("error", None, ex, True)
-                    client.mark_failed_generate(pend.id)
+                    client.mark_atlas_failed_generate(pend.id)
 
-            heartbeat_current_count = 0
-        else:
-            heartbeat_current_count += 1
-            if heartbeat_current_count >= heartbeat_count_limit:
-                logger.info("There are no pending precomputed entries")
-                heartbeat_current_count = 0
+            return True
     except Exception as ex:
         logger.error("process error", None, ex, True)
 
-    t1 = threading.Timer(process_interval, process_pending, (client, output))
-    t1.start()
+    return False
 
 
 def main(url: str, auth_key: str, output: str):
     logger.info(f"starting data client for url: {url}")
     logger.info(f"output base url: {output}")
+
+    ensure_bucket_folders(output)
+
     client = RemoteDataClient(url, auth_key)
 
     process_pending(client, output)

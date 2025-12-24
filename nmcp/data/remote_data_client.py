@@ -10,7 +10,7 @@ from .precomputed_entry import PrecomputedEntry
 
 logger = logging.getLogger(__name__)
 
-pending_query = gql(
+atlas_pending_query = gql(
     """
     query QueryPrecomputed {
           pendingPrecomputed {
@@ -24,7 +24,7 @@ pending_query = gql(
     """
 )
 
-update_mutation = gql(
+atlas_update_mutation = gql(
     """
     mutation UpdatePrecomputed($id: String!, $status: Int! $version: Int!, $generatedAt: Date!) {
         updatePrecomputed(id: $id, status: $status, version: $version, generatedAt: $generatedAt) {
@@ -38,7 +38,7 @@ update_mutation = gql(
     """
 )
 
-reconstruction_data_query = gql(
+atlas_reconstruction_data_query = gql(
     """
     query ReconstructionAsJSON($id: String!, $options: PortalReconstructionInput) {
         reconstructionAsJSON(id: $id, options: $options) {
@@ -94,6 +94,75 @@ reconstruction_data_query = gql(
     """
 )
 
+specimen_pending_query = gql(
+    """
+    query QuerySpecimenSpacePrecomputed {
+          specimenSpacePendingPrecomputed {
+            id
+            skeletonId
+            version
+            generatedAt
+            reconstructionId
+          }
+    }
+    """
+)
+
+specimen_update_mutation = gql(
+    """
+    mutation UpdateSpecimenSpacePrecomputed($id: String!, $status: Int! $version: Int!, $generatedAt: Date!) {
+        updateSpecimenSpacePrecomputed(id: $id, status: $status, version: $version, generatedAt: $generatedAt) {
+            id
+            skeletonId
+            version
+            generatedAt
+            reconstructionId
+        }
+    }
+    """
+)
+
+specimen_reconstruction_data_query = gql(
+    """
+    query SpecimenSpaceReconstructionAsJson($id: String!) {
+        specimenSpaceReconstructionAsJson(id: $id) {
+        comment
+            neurons {
+                id
+                idString
+                DOI
+                soma {
+                    x
+                    y
+                    z
+                }
+                sample {
+                    genotype
+                }
+                axon {
+                    x
+                    y
+                    z
+                    radius
+                    sampleNumber
+                    parentNumber
+                    structureIdentifier
+                }
+                dendrite {
+                    x
+                    y
+                    z
+                    radius
+                    sampleNumber
+                    parentNumber
+                    structureIdentifier
+                }
+            }
+        }
+    }
+    """
+)
+
 PRECOMPUTED_VERSION = 1
 
 
@@ -116,30 +185,56 @@ class RemoteDataClient:
 
         self._client = Client(transport=transport, fetch_schema_from_transport=False)
 
-    def find_pending(self) -> List[PrecomputedEntry]:
+
+    def find_specimen_space_pending(self) -> List[PrecomputedEntry]:
         pending = list()
 
-        result = self._client.execute(pending_query)
+        result = self._client.execute(specimen_pending_query)
+
+        for precomputed in result["specimenSpacePendingPrecomputed"]:
+            pending.append(PrecomputedEntry(**precomputed))
+
+        return pending
+
+    def mark_specimen_generated(self, entry_id: str) -> None:
+        params = {"id": entry_id, "status": PrecomputedStatus.Passed, "version": PRECOMPUTED_VERSION,
+                  "generatedAt": datetime.now().timestamp() * 1000}
+        self._client.execute(specimen_update_mutation, variable_values=params)
+
+    def mark_specimen_failed_load(self, entry_id: str) -> None:
+        params = {"id": entry_id, "status": PrecomputedStatus.FailedToLoad, "version": PRECOMPUTED_VERSION,
+                  "generatedAt": datetime.now().timestamp() * 1000}
+        self._client.execute(specimen_update_mutation, variable_values=params)
+
+    def mark_specimen_failed_generate(self, entry_id: str) -> None:
+        params = {"id": entry_id, "status": PrecomputedStatus.FailedToGenerate, "version": PRECOMPUTED_VERSION,
+                  "generatedAt": datetime.now().timestamp() * 1000}
+        self._client.execute(specimen_update_mutation, variable_values=params)
+
+    def find_atlas_pending(self) -> List[PrecomputedEntry]:
+        pending = list()
+
+        result = self._client.execute(atlas_pending_query)
 
         for precomputed in result["pendingPrecomputed"]:
             pending.append(PrecomputedEntry(**precomputed))
 
         return pending
 
-    def mark_generated(self, entry_id: str) -> None:
+    def mark_atlas_generated(self, entry_id: str) -> None:
         params = {"id": entry_id, "status": PrecomputedStatus.Passed, "version": PRECOMPUTED_VERSION,
                   "generatedAt": datetime.now().timestamp() * 1000}
-        self._client.execute(update_mutation, variable_values=params)
+        self._client.execute(atlas_update_mutation, variable_values=params)
 
-    def mark_failed_load(self, entry_id: str) -> None:
+    def mark_atlas_failed_load(self, entry_id: str) -> None:
         params = {"id": entry_id, "status": PrecomputedStatus.FailedToLoad, "version": PRECOMPUTED_VERSION,
                   "generatedAt": datetime.now().timestamp() * 1000}
-        self._client.execute(update_mutation, variable_values=params)
+        self._client.execute(atlas_update_mutation, variable_values=params)
 
-    def mark_failed_generate(self, entry_id: str) -> None:
+    def mark_atlas_failed_generate(self, entry_id: str) -> None:
         params = {"id": entry_id, "status": PrecomputedStatus.FailedToGenerate, "version": PRECOMPUTED_VERSION,
                   "generatedAt": datetime.now().timestamp() * 1000}
-        self._client.execute(update_mutation, variable_values=params)
+        self._client.execute(atlas_update_mutation, variable_values=params)
 
     def _get_reconstruction_part(self, result: Dict[str, Any], name: Optional[str] = None) -> Optional[Dict[str, Any]]:
         if not result or "reconstructionAsJSON" not in result:
@@ -168,7 +263,7 @@ class RemoteDataClient:
                 "dendriteLimit": 0
             }
             params = {"id": reconstruction_id, "options": header_input}
-            result = self._client.execute(reconstruction_data_query, variable_values=params)
+            result = self._client.execute(atlas_reconstruction_data_query, variable_values=params)
 
             return self._get_reconstruction_part(result)
 
@@ -207,7 +302,7 @@ class RemoteDataClient:
                     "axonLimit": request_limit
                 }
                 params = {"id": reconstruction_id, "options": axon_input}
-                result = self._client.execute(reconstruction_data_query, variable_values=params)
+                result = self._client.execute(atlas_reconstruction_data_query, variable_values=params)
 
                 chunk_data = self._get_reconstruction_part(result)
 
@@ -275,7 +370,7 @@ class RemoteDataClient:
                     "dendriteLimit": request_limit
                 }
                 params = {"id": reconstruction_id, "options": dendrite_input}
-                result = self._client.execute(reconstruction_data_query, variable_values=params)
+                result = self._client.execute(atlas_reconstruction_data_query, variable_values=params)
 
                 chunk_data = self._get_reconstruction_part(result)
 
@@ -313,7 +408,7 @@ class RemoteDataClient:
 
         return None
 
-    def get_reconstruction_data(self, reconstruction_id: str):
+    def get_atlas_reconstruction_data(self, reconstruction_id: str):
         """Get complete reconstruction data using the individual chunk methods.
 
         Maintains backward compatibility with the original interface.
@@ -344,5 +439,28 @@ class RemoteDataClient:
 
         except Exception as ex:
             logger.error(f"Error getting reconstruction data for {reconstruction_id}: {ex}")
+
+        return None
+
+    def get_specimen_space_reconstruction_data(self, reconstruction_id: str):
+        try:
+            params = {"id": reconstruction_id}
+
+            result = self._client.execute(specimen_reconstruction_data_query, variable_values=params)
+
+
+            if not result or "specimenSpaceReconstructionAsJson" not in result:
+                return None
+
+            if not "neurons" in result["specimenSpaceReconstructionAsJson"]:
+                return None
+
+            if len(result["specimenSpaceReconstructionAsJson"]["neurons"]) == 0:
+                return None
+
+            return result["specimenSpaceReconstructionAsJson"]["neurons"][0]
+
+        except Exception as ex:
+            logger.error(f"Error getting reconstruction header for {reconstruction_id}: {ex}")
 
         return None

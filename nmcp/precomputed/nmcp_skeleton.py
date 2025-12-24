@@ -1,6 +1,5 @@
 from dataclasses import dataclass, field
-from enum import IntEnum
-from typing import Optional, Self, List
+from typing import Self, List
 
 import numpy as np
 import pandas as pd
@@ -62,13 +61,16 @@ class SkeletonComponents:
 
         radii = df["radius"].values.astype(np.float32)
 
-        if df.allenId.isna().all():
-            df["allenId"] = 0
-        else:
-            # fill all the na values with 0
-            df["allenId"] = df["allenId"].fillna(0)
+        if "allenId" in df.columns:
+            if df.allenId.isna().all():
+                df["allenId"] = 0
+            else:
+                # fill all the na values with 0
+                df["allenId"] = df["allenId"].fillna(0)
 
-        ccf_ids = df["allenId"].values.astype(np.float32)
+            ccf_ids = df["allenId"].values.astype(np.float32)
+        else:
+            ccf_ids = np.full(len(nodes), 0, dtype=np.float32)
 
         compartments = df["structureIdentifier"].values.astype(np.float32)
 
