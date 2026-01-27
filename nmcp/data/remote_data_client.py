@@ -40,8 +40,8 @@ atlas_update_mutation = gql(
 
 atlas_reconstruction_data_query = gql(
     """
-    query ReconstructionAsJSON($id: String!, $options: PortalReconstructionInput) {
-        reconstructionAsJSON(id: $id, options: $options) {
+    query reconstructionAsJson($id: String!, $options: PortalReconstructionInput) {
+        reconstructionAsJson(id: $id, options: $options) {
         comment
             neurons {
                 id
@@ -237,22 +237,22 @@ class RemoteDataClient:
         self._client.execute(atlas_update_mutation, variable_values=params)
 
     def _get_reconstruction_part(self, result: Dict[str, Any], name: Optional[str] = None) -> Optional[Dict[str, Any]]:
-        if not result or "reconstructionAsJSON" not in result:
+        if not result or "reconstructionAsJson" not in result:
             return None
 
-        if not "neurons" in result["reconstructionAsJSON"]:
+        if not "neurons" in result["reconstructionAsJson"]:
             return None
 
-        if len(result["reconstructionAsJSON"]["neurons"]) == 0:
+        if len(result["reconstructionAsJson"]["neurons"]) == 0:
             return None
 
         if name is not None:
-            if name in result["reconstructionAsJSON"]["neurons"][0]:
-                return result["reconstructionAsJSON"]["neurons"][0][name]
+            if name in result["reconstructionAsJson"]["neurons"][0]:
+                return result["reconstructionAsJson"]["neurons"][0][name]
             else:
                 return None
 
-        return result["reconstructionAsJSON"]["neurons"][0]
+        return result["reconstructionAsJson"]["neurons"][0]
 
     def get_reconstruction_header(self, reconstruction_id: str):
         """Get header information for a reconstruction."""
