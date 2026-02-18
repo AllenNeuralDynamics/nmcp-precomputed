@@ -1,6 +1,7 @@
 import json
 import logging
 import pickle
+from copy import deepcopy
 from typing import List
 
 from cloudvolume import CloudVolume
@@ -23,17 +24,17 @@ def ensure_bucket_folders(cloud_location: str):
         logger.error("could not create bucket folders", None, exc_info=False)
 
 
-def create_from_json_files(json_files: [], cloud_location: str):
+def create_from_json_files(json_files: [], cloud_location: str, info: dict | None = None):
     """
     Convenience function for a list of JSON neuron files.  Primarily used for development and testing.
     """
     for json_file in json_files:
         with open(json_file) as f:
             data = json.load(f)
-            create_from_dict(data["neurons"][0], cloud_location)
+            create_from_dict(data["neurons"][0], cloud_location, info)
 
 
-def create_from_dict(neuron: dict, cloud_location: str):
+def create_from_dict(neuron: dict, cloud_location: str, info: dict | None = None):
     skeleton_id = None
 
     if "idString" in neuron:
@@ -45,15 +46,15 @@ def create_from_dict(neuron: dict, cloud_location: str):
     if skeleton_id is not None:
         axon, dendrite = create_skeleton_components(neuron)
         properties = extract_neuron_properties(neuron)
-        create_from_data(axon, dendrite, properties, cloud_location, skeleton_id)
+        create_from_data(axon, dendrite, properties, cloud_location, skeleton_id, info)
 
 
 def create_from_data(axon: SkeletonComponents, dendrite: SkeletonComponents, properties: NmcpPropertyValues,
-                     cloud_location: str, skeleton_id: int):
+                     cloud_location: str, skeleton_id: int, info: dict | None = None):
     """
     Add one or more neurons to the precomputed dataset.
     """
-    cv = _create_dataset_info(cloud_location)
+    cv = _create_dataset_info(cloud_location, info)
 
     # remove_skeleton(cloud_location, skeleton_id)
 
@@ -136,8 +137,7 @@ def list_skeletons(cloud_location: str) -> List[int]:
     return segment_info.ids
 
 
-def _create_dataset_info(cloud_location: str) -> CloudVolume:
-    """ Once per dataset """
+def _default_cloudvolume_info() -> dict:
     info = CloudVolume.create_new_info(
         num_channels=1,
         layer_type="segmentation",
@@ -156,15 +156,64 @@ def _create_dataset_info(cloud_location: str) -> CloudVolume:
 
     info["segment_properties"] = "segment_properties"
 
+    return info
+
+
+def _extract_resolution(info_dict: dict) -> List[float]:
+    resolution = None
+
+    scales = info_dict.get("scales")
+    if isinstance(scales, list) and len(scales) > 0 and isinstance(scales[0], dict):
+        resolution = scales[0].get("resolution")
+
+    if resolution is None:
+        resolution = info_dict.get("resolution")
+
+    if not isinstance(resolution, (list, tuple)) or len(resolution) != 3:
+        raise ValueError("CloudVolume info must define a 3-value resolution.")
+
+    values = []
+    for value in resolution:
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            raise ValueError("CloudVolume resolution values must be numeric.")
+        if value <= 0:
+            raise ValueError("CloudVolume resolution values must be greater than zero.")
+        values.append(value)
+
+    return values
+
+
+def _prepare_cloudvolume_info(info: dict | None) -> dict:
+    if info is None:
+        return _default_cloudvolume_info()
+
+    if not isinstance(info, dict):
+        raise ValueError("CloudVolume info must be provided as a dict.")
+
+    prepared = deepcopy(info)
+
+    if "segment_properties" not in prepared:
+        prepared["segment_properties"] = "segment_properties"
+
+    _extract_resolution(prepared)
+
+    return prepared
+
+
+def _create_dataset_info(cloud_location: str, info: dict | None = None) -> CloudVolume:
+    """ Once per dataset """
+    prepared_info = _prepare_cloudvolume_info(info)
+    resolution = _extract_resolution(prepared_info)
+
     full_location = f"precomputed://{cloud_location}"
 
     logger.info(f"creating CloudVolume at {full_location}")
 
-    cv = CloudVolume(full_location, info=info, compress=False)
+    cv = CloudVolume(full_location, info=prepared_info, compress=False)
 
     sk_info = cv.skeleton.meta.default_info()
 
-    sk_info["transform"] = [1000, 0, 0, 0, 0, 1000, 0, 0, 0, 0, 1000, 0]
+    sk_info["transform"] = [resolution[0], 0, 0, 0, 0, resolution[1], 0, 0, 0, 0, resolution[2], 0]
     sk_info["vertex_attributes"] = vertex_attributes
     cv.skeleton.meta.info = sk_info
     cv.skeleton.meta.commit_info()
