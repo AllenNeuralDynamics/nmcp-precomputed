@@ -1,19 +1,25 @@
 [build-system]
-requires = ["setuptools", "setuptools-scm"]
-build-backend = "setuptools.build_meta"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
-[tool.setuptools.packages.find]
-where = ["nmcp"]
+[tool.hatch.build.targets.wheel]
+packages = ["src/nmcp"]
+
+[tool.hatch.build.targets.sdist]
+exclude = [
+    "/tests"
+]
 
 [project]
-name = "nmcp"
-version = "1.0.0"
-description = "Neuron Morphology Community Portal Python Toolbox"
+name = "nmcp-precomputed"
+version = "3.0.4"
+description = "Neuron Morphology Community Portal Precomputed Toolbox"
 license = { text = "MIT" }
-requires-python = ">=3.11"
+requires-python = ">=3.10,<3.11"
 dependencies = [
-    "numpy",
+    "numpy<1.24",
     "pandas",
+    "gql[requests]",
     "allensdk",
     "cloud-volume",
     "cloud-files"
@@ -21,3 +27,12 @@ dependencies = [
 
 [tool.pytest.ini_options]
 addopts = ["-W ignore::DeprecationWarning"]
+
+[project.optional-dependencies]
+test = [
+    "pytest==8.2.0"
+]
+publish = [
+    "build",
+    "twine"
+]

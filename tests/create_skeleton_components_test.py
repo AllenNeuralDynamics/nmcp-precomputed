@@ -3,7 +3,7 @@ import os
 
 import numpy
 
-from precomputed.nmcp_skeleton import create_skeleton_components, SkeletonComponents
+from nmcp.precomputed.nmcp_skeleton import create_skeleton_components, SkeletonComponents
 
 
 def verify_contents(components: SkeletonComponents, size, compartment: int | None = None):

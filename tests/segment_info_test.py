@@ -1,4 +1,3 @@
-import os
 import pickle
 from pathlib import Path
 
@@ -43,6 +42,10 @@ def test_segment_info():
     s.append(999, _properties_2)
 
     _validate_segment_info(s)
+
+    # Can be used to generate a new test fixture if something structural changes.
+    # with open(Path(__file__).parent.joinpath("fixtures").joinpath("segment_info.pickle"), 'wb') as file:
+    #     pickle.dump(s, file)
 
 
 def test_segment_info_update():

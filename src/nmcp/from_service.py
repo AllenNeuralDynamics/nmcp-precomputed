@@ -1,0 +1,32 @@
+import argparse
+import logging
+
+from .data import RemoteDataClient
+from .precomputed import create_from_dict
+
+logging.basicConfig(level=logging.WARNING)
+
+
+def main():
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument("-o", "--output", help="the output cloud volume location")
+    parser.add_argument("-u", "--url", help="URL of the GraphQL service")
+    parser.add_argument("-a", "--authkey", help="authorization header for GraphQL service")
+
+    args = parser.parse_args()
+
+    client = RemoteDataClient(args.url, args.authkey)
+
+    pending = client.find_atlas_pending()
+
+    print(pending)
+
+    for pend in pending:
+        data = client.get_atlas_reconstruction_data(pend.reconstructionId)
+        data["skeleton_id"] = pend.skeletonSegmentId
+        create_from_dict(data, args.output)
+
+
+if __name__ == "__main__":
+    main()

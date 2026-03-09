@@ -1,7 +1,7 @@
 import logging
 from datetime import datetime
 from enum import IntEnum
-from typing import List, Dict, Any, Optional
+from typing_extensions import List, Dict, Any, Optional
 
 from gql import Client, gql
 from gql.transport.requests import RequestsHTTPTransport
