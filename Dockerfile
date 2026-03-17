@@ -1,7 +1,9 @@
 FROM python:3.10
 
+WORKDIR /app
+
 COPY docker-entry.sh ./
 
-RUN pip install --no-cache-dir --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ nmcp-precomputed==3.0.7
+RUN pip install --no-cache-dir nmcp-precomputed==3.0.5
 
 CMD ["./docker-entry.sh"]
