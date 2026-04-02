@@ -1,7 +1,7 @@
 import pickle
 from pathlib import Path
 
-from nmcp import SegmentInfo, NmcpPropertyValues
+from nmcp import SegmentInfo, SegmentPropertyValues
 
 _test_structure_1 = {"acronym": "mlf",
                      "graph_id": 1,
@@ -30,9 +30,9 @@ _test_structure_3 = {'acronym': 'SEZ',
                      'structure_set_ids': [10, 184527634, 691663206],
                      'rgb_triplet': [170, 170, 170]}
 
-_properties_1 = NmcpPropertyValues(label="N001-609281", strain="unknown 1", soma_id=_test_structure_1["id"])
-_properties_2 = NmcpPropertyValues(label="N002-609281", strain="unknown 2", soma_id=_test_structure_2["id"])
-_properties_3 = NmcpPropertyValues(label="N003-609281", strain="unknown 3", soma_id=_test_structure_3["id"])
+_properties_1 = SegmentPropertyValues(label="N001-609281", genotype="unknown 1", soma_atlas_structure_id=_test_structure_1["id"])
+_properties_2 = SegmentPropertyValues(label="N002-609281", genotype="unknown 2", soma_atlas_structure_id=_test_structure_2["id"])
+_properties_3 = SegmentPropertyValues(label="N003-609281", genotype="unknown 3", soma_atlas_structure_id=_test_structure_3["id"])
 
 
 def test_segment_info():
@@ -145,7 +145,7 @@ def test_segment_info_remove():
 
     assert s.ids == [998, 997]
     assert s.labels.values == ["N001-609281", "N003-609281"]
-    assert s.strains.values == ["unknown 1", "unknown 3"]
+    assert s.genotypes.values == ["unknown 1", "unknown 3"]
     assert s.tags.values == [_test_structure_1["acronym"], _test_structure_3["acronym"]]
     assert s.tags.descriptions == [_test_structure_1["name"], _test_structure_3["name"]]
 
@@ -178,16 +178,16 @@ def _validate_segment_info(s: SegmentInfo):
 
     assert labels["id"] == "label"
     assert labels["type"] == "label"
-    assert labels["description"] == "filename"
+    assert labels["description"] == "neuron identifier"
     assert len(labels["values"]) == 2
     assert labels["values"][0] == "N001-609281"
     assert labels["values"][1] == "N002-609281"
 
     strains = info["inline"]["properties"][1]
 
-    assert strains["id"] == "strain"
+    assert strains["id"] == "genotype"
     assert strains["type"] == "string"
-    assert strains["description"] == "mouse line used"
+    assert strains["description"] == "animal genotype"
     assert len(strains["values"]) == 2
     assert strains["values"][0] == "unknown 1"
     assert strains["values"][1] == "unknown 2"

@@ -2,14 +2,17 @@ import json
 import logging
 import pickle
 from copy import deepcopy
+from typing import cast
+
 from typing_extensions import List
 
 from cloudvolume import CloudVolume
 from cloudfiles import CloudFiles
 
-from .nmcp_skeleton import (create_skeleton, vertex_attributes, create_skeleton_components,
-                            SkeletonComponents)
-from .segment_info import SegmentInfo, NmcpPropertyValues
+from .nmcp_skeleton import vertex_attributes, SkeletonComponents
+from .segment_info import SegmentInfo, SegmentPropertyValues
+from ..data.portal_reconstruction import PortalReconstruction
+from .neuron_structure import NeuronStructure
 
 logger = logging.getLogger(__name__)
 
@@ -20,41 +23,56 @@ def ensure_bucket_folders(cloud_location: str):
         cf.touch("full/temp.txt")
         cf.touch("axon/temp.txt")
         cf.touch("dendrite/temp.txt")
+        cf.touch("specimen/temp.txt")
     except Exception as ex:
         logger.error("could not create bucket folders", None, exc_info=False)
 
 
-def create_from_json_files(json_files: [], cloud_location: str, info: dict | None = None):
+def create_from_json_files(json_files: List[str], cloud_location: str, info: dict | None = None,
+                           structure: NeuronStructure | None = None) -> List[int]:
     """
-    Convenience function for a list of JSON neuron files.  Primarily used for development and testing.
+    Convenience function for a list of portal-formatted JSON reconstruction files.
     """
+
+    ids: List[int] = []
+
     for json_file in json_files:
         with open(json_file) as f:
-            data = json.load(f)
-            create_from_dict(data["neurons"][0], cloud_location, info)
+            data: PortalReconstruction = json.load(f)
+            skeleton_id = create_from_reconstruction(data, cloud_location, structure=structure, cloud_files_info=info)
+            if skeleton_id is not None:
+                ids.append(skeleton_id)
+
+    return ids
 
 
-def create_from_dict(neuron: dict, cloud_location: str, info: dict | None = None):
-    skeleton_id = None
-
-    if "idString" in neuron:
-        try:
-            skeleton_id = int(neuron["idString"][1:4])
-        except:
-            pass  # Ok to fail for some unsupported skeleton id interpretation.
+def create_from_reconstruction(reconstruction: PortalReconstruction, cloud_location: str,
+                               skeleton_id: int | None = None, structure: NeuronStructure | None = None,
+                               cloud_files_info: dict | None = None) -> int | None:
+    if skeleton_id is None:
+        if "neuron" in reconstruction and "label" in reconstruction["neuron"]:
+            try:
+                skeleton_id = int(reconstruction["neuron"]["label"][1:4])
+            except:
+                pass  # Ok to fail for some unsupported skeleton id interpretation.
 
     if skeleton_id is not None:
-        axon, dendrite = create_skeleton_components(neuron)
-        properties = extract_neuron_properties(neuron)
-        create_from_data(axon, dendrite, properties, cloud_location, skeleton_id, info)
+        components = SkeletonComponents(reconstruction["nodes"], structure)
+
+        properties = extract_reconstruction_properties(reconstruction)
+
+        return create_from_skeleton_components(components, properties, cloud_location, skeleton_id, cloud_files_info)
+
+    return None
 
 
-def create_from_data(axon: SkeletonComponents, dendrite: SkeletonComponents, properties: NmcpPropertyValues,
-                     cloud_location: str, skeleton_id: int, info: dict | None = None):
+def create_from_skeleton_components(components: SkeletonComponents, properties: SegmentPropertyValues,
+                                    cloud_location: str, skeleton_id: int,
+                                    cloud_files_info: dict | None = None) -> int | None:
     """
     Add one or more neurons to the precomputed dataset.
     """
-    cv = _create_dataset_info(cloud_location, info)
+    cv = _create_dataset_info(cloud_location, cloud_files_info)
 
     # remove_skeleton(cloud_location, skeleton_id)
 
@@ -62,13 +80,13 @@ def create_from_data(axon: SkeletonComponents, dendrite: SkeletonComponents, pro
         cf = CloudFiles(cloud_location)
     except Exception as ex:
         logger.error("could not create cloud files", None, exc_info=False)
-        return
+        return None
 
     try:
-        existing = cf.get("segment_properties/info.pickle")
+        existing = cast(bytes, cf.get("segment_properties/info.pickle"))
     except Exception as ex:
         logger.error("could not ask for get segment info", None, exc_info=False)
-        return
+        return None
 
     try:
         if existing is not None:
@@ -77,26 +95,26 @@ def create_from_data(axon: SkeletonComponents, dendrite: SkeletonComponents, pro
             segment_info = SegmentInfo()
     except Exception as ex:
         logger.error("could not get segment info", None, exc_info=False)
-        return
+        return None
 
     try:
-        # TODO: Could be left in an odd state if the skeleton is created but segment_info append fails.
-        skeleton = create_skeleton(skeleton_id, axon, dendrite)
+        skeleton = components.create_skeleton(skeleton_id)
     except Exception as ex:
         logger.error("could not create skeleton", None, exc_info=False)
-        return
+        return None
 
     try:
         segment_info.append(skeleton_id, properties)
     except Exception as ex:
         logger.error("could not append segment info", None, exc_info=False)
-        return
+        return None
 
     try:
+        # TODO: Could be left in an odd state segment_info is appended but skeleton upload fails.
         cv.skeleton.upload(skeleton)
     except Exception as ex:
         logger.error("could not upload skeleton", None, exc_info=False)
-        return
+        return None
 
     try:
         _create_segment_properties(cloud_location, segment_info)
@@ -104,11 +122,13 @@ def create_from_data(axon: SkeletonComponents, dendrite: SkeletonComponents, pro
         logger.error(f"could create segment properties {skeleton_id}", None, exc_info=True)
         logger.exception(ex, exc_info=True)
 
+    return skeleton_id
+
 
 def remove_skeleton(cloud_location: str, skeleton_id: int) -> bool:
     cf = CloudFiles(cloud_location)
 
-    existing = cf.get("segment_properties/info.pickle")
+    existing = cast(bytes, cf.get("segment_properties/info.pickle"))
 
     if existing is None:
         return False
@@ -127,7 +147,7 @@ def remove_skeleton(cloud_location: str, skeleton_id: int) -> bool:
 def list_skeletons(cloud_location: str) -> List[int]:
     cf = CloudFiles(cloud_location)
 
-    existing = cf.get("segment_properties/info.pickle")
+    existing = cast(bytes, cf.get("segment_properties/info.pickle"))
 
     if existing is None:
         return []
@@ -135,6 +155,26 @@ def list_skeletons(cloud_location: str) -> List[int]:
     segment_info = pickle.loads(existing)
 
     return segment_info.ids
+
+
+def extract_reconstruction_properties(data: PortalReconstruction) -> SegmentPropertyValues:
+    soma = next((n for n in data["nodes"] if n["structure"] == 1), None)
+
+    if soma is not None and soma["atlasStructure"] is not None:
+        soma_atlas_structure_id = soma["atlasStructure"]
+    else:
+        soma_atlas_structure_id = None
+
+    label = f'{(data["neuron"]["label"])}-{(data["neuron"]["specimen"]["label"])}'
+
+    specimen = data["neuron"]["specimen"]
+
+    if specimen["genotype"] is not None:
+        genotype = specimen["genotype"]
+    else:
+        genotype = "unknown"
+
+    return SegmentPropertyValues(label, genotype, soma_atlas_structure_id)
 
 
 def _default_cloudvolume_info() -> dict:
@@ -221,23 +261,6 @@ def _create_dataset_info(cloud_location: str, info: dict | None = None) -> Cloud
     cv.commit_info()
 
     return cv
-
-
-def extract_neuron_properties(data: dict) -> NmcpPropertyValues:
-    if "allenId" in data["soma"]:
-        soma_allen_id = data["soma"]["allenId"]
-    else:
-        soma_allen_id = None
-
-    label = (data["idString"])
-
-    sample = data.get("sample")
-    if sample is not None and "strain" in sample and sample["strain"] is not None:
-        strain = sample["strain"]
-    else:
-        strain = "unknown"
-
-    return NmcpPropertyValues(label, strain, soma_allen_id)
 
 
 def _create_segment_properties(cloud_location: str, segment_property_info: SegmentInfo):

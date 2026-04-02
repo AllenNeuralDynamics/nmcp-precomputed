@@ -3,8 +3,9 @@ import logging
 
 from .precomputed import list_skeletons
 
-logging.basicConfig(level=logging.WARNING)
+logging.basicConfig(level=logging.INFO)
 
+logger = logging.getLogger(__name__)
 
 def main():
     parser = argparse.ArgumentParser()
@@ -13,11 +14,15 @@ def main():
 
     args = parser.parse_args()
 
-    ids = list_skeletons(args.output)
+    locations = ["specimen"]
 
-    print(f"{len(ids)} skeletons in {args.output}")
+    for location in locations:
+        full_path = f"{args.output}/{location}"
+        ids = list_skeletons(full_path)
 
-    print(ids)
+        logger.info(f"{len(ids)} skeletons in {full_path}")
+
+        logger.info(ids)
 
 
 if __name__ == "__main__":

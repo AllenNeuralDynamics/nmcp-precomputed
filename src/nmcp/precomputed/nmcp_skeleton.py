@@ -1,10 +1,14 @@
-from dataclasses import dataclass, field
-from typing_extensions import Self, List
+import copy
+
+from typing_extensions import List
 
 import numpy as np
 import pandas as pd
 
 from cloudvolume import Skeleton
+
+from .neuron_structure import NeuronStructure
+from ..data.portal_reconstruction import PortalNode
 
 vertex_attributes = [
     {
@@ -25,118 +29,95 @@ vertex_attributes = [
     }
 ]
 
-_NP_EMPTY = np.empty(0, dtype=np.float32)
-_NP_EMPTY_VERTEX = np.empty((0, 3), dtype=np.float32)
-_NP_EMPTY_EDGE = np.empty((0, 2), dtype=np.float32)
 
-
-@dataclass
 class SkeletonComponents:
-    vertices: np.ndarray = field(default_factory=lambda: _NP_EMPTY_VERTEX)
-    edges: np.ndarray = field(default_factory=lambda: _NP_EMPTY_EDGE)
-    radii: np.ndarray = field(default_factory=lambda: _NP_EMPTY)
-    ccf_ids: np.ndarray = field(default_factory=lambda: _NP_EMPTY)
-    compartments: np.ndarray = field(default_factory=lambda: _NP_EMPTY)
-
-    @classmethod
-    def create(cls, nodes: List[dict]):
-        skeleton = cls()
-        skeleton.append(nodes)
-        return skeleton
-
-    def append(self, nodes: List[dict]):
-        """
-        Add segment data to the skeleton.  This is presumed to be a continuation of existing skeleton part such as
-        axon chunks being accumulated.  See `concat` for merging axon and dendrite parts with adjustment for both
-        containing a soma reference.
-        """
+    def __init__(self, nodes: List[PortalNode], structure: NeuronStructure | None = None):
         if nodes is None or len(nodes) == 0:
+            self.vertices: np.ndarray = np.empty((0, 3), dtype=np.float32)
+            self.edges: np.ndarray = np.empty((0, 2), dtype=np.float32)
+            self.radii: np.ndarray = np.empty(0, dtype=np.float32)
+            self.atlas_structure_ids: np.ndarray = np.empty(0, dtype=np.float32)
+            self.node_structure_ids: np.ndarray = np.empty(0, dtype=np.float32)
             return
+
+        nodes = SkeletonComponents.select_nodes(nodes, structure)
 
         df = pd.DataFrame(nodes)
 
         vertices = df[["x", "y", "z"]].values
 
-        edges = df[["sampleNumber", "parentNumber"]].values[1:] - 1
+        edges = df[["index", "parentIndex"]].values[1:]
 
         radii = df["radius"].values.astype(np.float32)
 
-        if "allenId" in df.columns:
-            if df.allenId.isna().all():
-                df["allenId"] = 0
+        if "atlasStructure" in df.columns:
+            if df["atlasStructure"].isna().all():
+                df["atlasStructure"] = 0
             else:
                 # fill all the na values with 0
-                df["allenId"] = df["allenId"].fillna(0)
+                df["atlasStructure"] = df["atlasStructure"].fillna(0)
 
-            ccf_ids = df["allenId"].values.astype(np.float32)
+            ccf_ids = df["atlasStructure"].values.astype(np.float32)
         else:
             ccf_ids = np.full(len(nodes), 0, dtype=np.float32)
 
-        compartments = df["structureIdentifier"].values.astype(np.float32)
+        structure_ids = df["structure"].values.astype(np.float32)
 
-        self.vertices = np.concatenate([self.vertices, vertices])
-        self.edges = np.concatenate([self.edges, edges])
-        self.radii = np.concatenate([self.radii, radii])
-        self.ccf_ids = np.concatenate([self.ccf_ids, ccf_ids])
-        self.compartments = np.concatenate([self.compartments, compartments])
+        self.vertices = vertices
+        self.edges = edges
+        self.radii = radii
+        self.atlas_structure_ids = ccf_ids
+        self.node_structure_ids = structure_ids
 
-    def concat(self, other: Self) -> Self:
-        # Assumed to be an axon with dendrite in that order.
-        if not isinstance(other, SkeletonComponents):
-            raise TypeError("can only concatenate SkeletonComponents")
+    def create_skeleton(self, skeleton_id: int) -> Skeleton:
+        sk = Skeleton(segid=skeleton_id)
 
-        # Get the current number of vertices to adjust edge indices
-        existing_vertex_count = len(self.vertices)
+        sk.vertices = self.vertices
+        sk.edges = self.edges
+        sk.radii = self.radii
+        sk.extra_attributes = vertex_attributes
 
-        # Adjust new edges to reference correct vertex indices
-        adjusted_edges = other.edges + existing_vertex_count - 1
+        sk.radius = self.radii
+        sk.allenId = self.atlas_structure_ids
+        sk.compartment = self.node_structure_ids
 
-        if len(self.vertices) > 0 and len(other.edges) > 0:
-            # Map any dendrite edges that would have referenced the soma in the dendrite structure
-            # to the axon soma vertex.
-            adjusted_edges[adjusted_edges[:, 1] == self.vertices.shape[0] - 1, 1] = 0
+        return sk
 
-        return SkeletonComponents(
-            vertices=np.concatenate([self.vertices, other.vertices[1:]]),
-            edges=np.concatenate([self.edges, adjusted_edges]),
-            radii=np.concatenate([self.radii, other.radii[1:]]),
-            ccf_ids=np.concatenate([self.ccf_ids, other.ccf_ids[1:]]),
-            compartments=np.concatenate([self.compartments, other.compartments[1:]])
-        )
+    @staticmethod
+    def select_nodes(src_nodes: List[PortalNode], structure: NeuronStructure | None) -> List[PortalNode]:
+        # May be modifying indices.
+        nodes = copy.deepcopy(src_nodes)
 
+        if structure is not None:
+            node_ids = [(node["index"], node["parentIndex"]) for node in nodes if node["structure"] == structure]
 
-def create_skeleton_components(data: dict) -> tuple[SkeletonComponents | None, SkeletonComponents | None]:
-    axon = None
-    dendrite = None
+            flat_map = [item for tup in node_ids for item in tup]
 
-    if data["axon"]:
-        axon = SkeletonComponents.create(data["axon"])
+            unique = list(set(flat_map))
 
-    if data["dendrite"]:
-        dendrite = SkeletonComponents.create(data["dendrite"])
+            # All nodes including the parent of the first node of this structure type.  Parent typically would be the soma
+            # but could be from the other structure (e.g., axon from dendrite).
+            required_nodes = [node for node in nodes if node["index"] in unique]
 
-    return axon, dendrite
+            # Find that root node whose parent is not expected to be in the final list, either because it doesn't exist
+            # (soma) or would mean including parts of the other structure beyond just where the junction occurs (axon
+            # from dendrite case).
+            root = next((node for node in required_nodes if node["parentIndex"] not in node_ids))
+        else:
+            required_nodes = nodes
+            root = next((node for node in required_nodes if node["parentIndex"] == -1))
 
+        node_map = {root["parentIndex"]: -1}
 
-def create_skeleton(skeleton_id: int, axon: SkeletonComponents, dendrite: SkeletonComponents) -> Skeleton:
-    if axon is None:
-        assert dendrite is not None
-        output = dendrite
-    elif dendrite is None:
-        assert axon is not None
-        output = axon
-    else:
-        output = axon.concat(dendrite)
+        # Remap indices to contiguous [0...N] for skeleton which required that edges index into a vertices array with
+        # that property.  This is for situations like substructures that start at an offset within the total node list
+        # skips indices in the original SWC/source, or indices not starting at 0 even for the full structure (e.g., SWC
+        # starting at 1).
+        for idx, node in enumerate(required_nodes):
+            node_map[node["index"]] = idx
+            node["index"] = idx
 
-    sk = Skeleton(segid=skeleton_id)
+        for node in required_nodes:
+            node["parentIndex"] = node_map[node["parentIndex"]]
 
-    sk.vertices = output.vertices
-    sk.edges = output.edges
-    sk.radii = output.radii
-    sk.extra_attributes = vertex_attributes
-
-    sk.radius = output.radii
-    sk.allenId = output.ccf_ids
-    sk.compartment = output.compartments
-
-    return sk
+        return required_nodes

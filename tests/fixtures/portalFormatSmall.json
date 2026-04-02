@@ -1,0 +1,121 @@
+{
+  "id": "019d58c3-5a9c-73c5-9192-4f72c3f37b40",
+  "annotationSpace": 1,
+  "annotator": {
+    "displayName": "This Annotator",
+    "affiliation": "",
+    "email": "annotator@annotator.io"
+  },
+  "peerReviewer": null,
+  "proofreader": {
+    "displayName": "",
+    "affiliation": "",
+    "email": ""
+  },
+  "neuron": {
+    "label": "N004",
+    "specimen": {
+      "label": "648434",
+      "date": "",
+      "genotype": "Dbh-Cre_KI",
+      "injections": [],
+      "collection": {
+        "name": "ExaSPIM",
+        "description": "",
+        "reference": ""
+      }
+    }
+  },
+  "nodes": [
+    {
+      "index": 1,
+      "structure": 1,
+      "x": 10912.4623,
+      "y": 4317.6498,
+      "z": 6785.7194,
+      "radius": 1,
+      "parentIndex": -1,
+      "atlasStructure": 202
+    },
+    {
+      "index": 2,
+      "structure": 3,
+      "x": 10912.4623,
+      "y": 4317.6498,
+      "z": 6785.7194,
+      "radius": 1,
+      "parentIndex": 1,
+      "atlasStructure": 202
+    },
+    {
+      "index": 3,
+      "structure": 3,
+      "x": 10917.701996,
+      "y": 4312.862544,
+      "z": 6789.869422,
+      "radius": 1,
+      "parentIndex": 2,
+      "atlasStructure": 202
+    },
+    {
+      "index": 4,
+      "structure": 3,
+      "x": 10923.419772,
+      "y": 4308.068319,
+      "z": 6793.60227,
+      "radius": 1,
+      "parentIndex": 3,
+      "atlasStructure": 202
+    },
+    {
+      "index": 282,
+      "structure": 2,
+      "x": 10931.3357,
+      "y": 4307.156,
+      "z": 6791.389,
+      "radius": 1,
+      "parentIndex": 1,
+      "atlasStructure": 202
+    },
+    {
+      "index": 283,
+      "structure": 2,
+      "x": 10926.760733,
+      "y": 4304.947642,
+      "z": 6787.58644,
+      "radius": 1,
+      "parentIndex": 282,
+      "atlasStructure": 202
+    },
+    {
+      "index": 284,
+      "structure": 2,
+      "x": 10928.99714,
+      "y": 4299.779757,
+      "z": 6784.268619,
+      "radius": 1,
+      "parentIndex": 283,
+      "atlasStructure": 202
+    },
+    {
+      "index": 285,
+      "structure": 2,
+      "x": 10933.732258,
+      "y": 4293.92851,
+      "z": 6781.039598,
+      "radius": 1,
+      "parentIndex": 284,
+      "atlasStructure": 202
+    },
+    {
+      "index": 286,
+      "structure": 2,
+      "x": 10939.925376,
+      "y": 4289.225948,
+      "z": 6777.865267,
+      "radius": 1,
+      "parentIndex": 285,
+      "atlasStructure": 202
+    }
+  ]
+}

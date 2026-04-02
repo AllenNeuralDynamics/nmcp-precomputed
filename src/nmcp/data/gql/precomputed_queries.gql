@@ -1,0 +1,138 @@
+query QueryAtlasSpacePending {
+    pendingPrecomputed {
+        id
+        skeletonId
+        version
+        generatedAt
+        reconstructionId
+    }
+}
+
+
+mutation UpdateAtlasSpacePrecomputed($id: String!, $status: Int! $version: Int!, $generatedAt: Date!) {
+    updatePrecomputed(id: $id, status: $status, version: $version, generatedAt: $generatedAt) {
+        id
+        skeletonId
+        version
+        generatedAt
+        reconstructionId
+    }
+}
+
+query QueryAtlasSpaceReconstruction($id: String!) {
+    exportedAtlasReconstruction(id: $id) {
+        id
+        annotationSpace
+        annotator {
+            displayName
+            affiliation
+            email
+        }
+        peerReviewer {
+            displayName
+            affiliation
+            email
+        }
+        proofreader {
+            displayName
+            affiliation
+            email
+        }
+        neuron {
+            label
+            specimen {
+                label
+                date
+                genotype
+                injections {
+                    fluorophore
+                    virus
+                }
+                collection {
+                    name
+                    description
+                    reference
+                }
+            }
+        }
+        nodes {
+            index
+            structure
+            x
+            y
+            z
+            radius
+            parentIndex
+            atlasStructure
+        }
+    }
+}
+
+query QuerySpecimenSpacePending {
+    specimenSpacePendingPrecomputed {
+        id
+        skeletonId
+        version
+        generatedAt
+        reconstructionId
+    }
+}
+
+mutation UpdateSpecimenSpacePrecomputed($id: String!, $status: Int! $version: Int!, $generatedAt: Date!) {
+    updateSpecimenSpacePrecomputed(id: $id, status: $status, version: $version, generatedAt: $generatedAt) {
+        id
+        skeletonId
+        version
+        generatedAt
+        reconstructionId
+    }
+}
+
+query QuerySpecimenSpaceReconstruction($id: String!) {
+    exportedSpecimenReconstruction(id: $id) {
+        id
+        annotationSpace
+        annotator {
+            displayName
+            affiliation
+            email
+        }
+        peerReviewer {
+            displayName
+            affiliation
+            email
+        }
+        proofreader {
+            displayName
+            affiliation
+            email
+        }
+        neuron {
+            label
+            specimen {
+                label
+                date
+                genotype
+                injections {
+                    fluorophore
+                    virus
+                }
+                collection {
+                    name
+                    description
+                    reference
+                }
+            }
+        }
+        nodes {
+            index
+            structure
+            x
+            y
+            z
+            radius
+            parentIndex
+            atlasStructure
+        }
+    }
+}
