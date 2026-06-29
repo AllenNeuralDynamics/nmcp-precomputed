@@ -5,7 +5,7 @@ vars:
   IMAGE: allenneuraldynamics/nmcp-precomputed-worker
   REPOIMAGE: "{{.REPOSITORY}}/{{.IMAGE}}"
   VERSION:
-    sh: jq -r .version version.json
+    sh: uv version --short
   MAJOR:
     sh: string={{.VERSION}} && arr=(${string//"."/ }) && echo ${arr[0]}
   MINOR:
@@ -18,9 +18,13 @@ vars:
   IMAGELATEST: "{{.REPOIMAGE}}:latest"
 
 tasks:
+  module:
+    cmds:
+      - uv build --wheel
   build:
     cmds:
-      - docker build --platform linux/amd64 --tag {{.IMAGEWITHVERSION}} .
+      - task: module
+      - docker build --platform linux/amd64 --build-arg VERSION={{.VERSION}} --tag {{.IMAGEWITHVERSION}} .
       - docker tag {{.IMAGEWITHVERSION}} {{.IMAGEWITHMINORVERSION}}
       - docker tag {{.IMAGEWITHMINORVERSION}} {{.IMAGEWITHREVERSION}}
       - docker tag {{.IMAGEWITHREVERSION}} {{.IMAGELATEST}}

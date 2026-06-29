@@ -12,7 +12,7 @@ exclude = [
 
 [project]
 name = "nmcp-precomputed"
-version = "3.0.7"
+version = "3.1.0"
 description = "Neuron Morphology Community Portal Precomputed Toolbox"
 license = { text = "MIT" }
 requires-python = ">=3.10,<3.13"
@@ -22,7 +22,7 @@ dependencies = [
 
 [project.optional-dependencies]
 numerics = [
-    "numpy<1.24",
+    "numpy>=1.23.5,<2",
     "pandas",
     "allensdk",
     "cloud-volume",
@@ -30,12 +30,17 @@ numerics = [
 ]
 
 test = [
-    "pytest==8.2.0"
+    "httpx>=0.28.1",
+    "pytest==8.2.0",
 ]
 
 publish = [
     "build",
     "twine"
+]
+api = [
+    "fastapi>=0.162.2",
+    "uvicorn>=0.54.0",
 ]
 
 [tool.pytest.ini_options]

@@ -8,6 +8,6 @@ COPY pyproject.toml ./
 
 COPY src ./src
 
-RUN pip install --no-cache-dir .
+RUN pip install --no-cache-dir ".[numerics,api]"
 
 CMD ["./docker-entry.sh"]

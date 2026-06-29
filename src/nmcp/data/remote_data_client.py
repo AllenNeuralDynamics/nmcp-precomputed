@@ -1,6 +1,7 @@
 import logging
 from datetime import datetime
 from enum import IntEnum
+from urllib.parse import urlparse
 
 from typing_extensions import List
 
@@ -23,8 +24,31 @@ class PrecomputedStatus(IntEnum):
     FailedToGenerate = 400
 
 
+class _GraphQLRetryFilter(logging.Filter):
+    """
+    Drops urllib3's per-attempt "Retrying" warnings for GraphQL requests. The worker already logs one warning per
+    outage with the final reason, and every poll during an outage would otherwise add one line per retry. Requests to
+    other paths, such as cloud-files uploads, keep theirs.
+    """
+
+    def __init__(self, path: str):
+        super().__init__()
+        self._path = path
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        # urllib3 logs `"Retrying (%r) after connection broken by '%r': %s", retries, err, url`, where url is the
+        # request path.
+        is_retry = isinstance(record.msg, str) and record.msg.startswith("Retrying")
+
+        return not (is_retry and isinstance(record.args, tuple) and len(record.args) > 0 and
+                    record.args[-1] == self._path)
+
+
 class RemoteDataClient:
     def __init__(self, url: str, auth_key: str):
+        # requests sends "/" for a URL with no path.
+        logging.getLogger("urllib3.connectionpool").addFilter(_GraphQLRetryFilter(urlparse(url).path or "/"))
+
         transport = RequestsHTTPTransport(
             url=url,
             verify=True,

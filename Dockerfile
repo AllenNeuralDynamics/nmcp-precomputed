@@ -1,9 +1,14 @@
 FROM python:3.10
 
+# Supplied by the Taskfile from pyproject.toml; selects the wheel `uv build` wrote for this version.
+ARG VERSION
+
 WORKDIR /app
 
-COPY docker-entry.sh ./
+COPY --chmod=755 docker-entry.sh ./
 
-RUN pip install --no-cache-dir "nmcp-precomputed[numerics]==3.0.7"
+COPY dist/nmcp_precomputed-${VERSION}-py3-none-any.whl ./
+
+RUN pip install --no-cache-dir "./nmcp_precomputed-${VERSION}-py3-none-any.whl[numerics,api]"
 
 CMD ["./docker-entry.sh"]
