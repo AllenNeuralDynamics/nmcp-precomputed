@@ -1,6 +1,8 @@
 import logging
 import threading
 
+from gql.transport.exceptions import TransportConnectionFailed
+
 from . import create_from_reconstruction
 from .data import RemoteDataClient
 from .data.portal_reconstruction import PortalReconstruction
@@ -17,6 +19,8 @@ heartbeat_interval: int = 3600  # seconds
 
 heartbeat_count_limit: int = int(heartbeat_interval / process_interval)
 heartbeat_current_count: int = 0
+
+graphql_unreachable: bool = False
 
 
 def load_specimen_space_reconstruction(client: RemoteDataClient, reconstruction_id: str) -> PortalReconstruction | None:
@@ -77,13 +81,21 @@ def process_pending(client: RemoteDataClient, output_location: str):
             logger.info("There are no pending precomputed entries")
             heartbeat_current_count = 0
 
-    t1 = threading.Timer(process_interval, process_pending, (client, output_location))
-    t1.start()
+    _schedule(client, output_location, process_interval)
+
+
+def _schedule(client: RemoteDataClient, output_location: str, delay: float) -> None:
+    timer = threading.Timer(delay, process_pending, (client, output_location))
+    # Daemon, so the process exits when the API server stops; an interrupted cycle leaves its entries pending.
+    timer.daemon = True
+    timer.start()
 
 
 def process_specimen_pending(client: RemoteDataClient, output_location: str) -> bool:
     try:
         pending = client.find_specimen_space_pending()
+
+        _note_reachable()
 
         if len(pending) > 0:
             logger.info(f"{len(pending)} pending specimen space precomputed entries")
@@ -99,13 +111,16 @@ def process_specimen_pending(client: RemoteDataClient, output_location: str) -> 
                     save_specimen_precomputed(pend.skeletonId, reconstruction, output_location)
 
                     client.mark_specimen_generated(pend.id)
-                except Exception as ex:
-                    logger.error("error", None, ex, True)
+                except Exception:
+                    logger.exception(f"failed to generate specimen space precomputed for entry {pend.id} "
+                                     f"(skeleton {pend.skeletonId})")
                     client.mark_specimen_failed_generate(pend.id)
 
             return True
-    except Exception as ex:
-        logger.error("process error", None, ex, True)
+    except TransportConnectionFailed as ex:
+        _note_unreachable(ex)
+    except Exception:
+        logger.exception("failed to process pending specimen space precomputed entries")
 
     return False
 
@@ -113,6 +128,8 @@ def process_specimen_pending(client: RemoteDataClient, output_location: str) -> 
 def process_atlas_pending(client: RemoteDataClient, output_location: str) -> bool:
     try:
         pending = client.find_atlas_pending()
+
+        _note_reachable()
 
         if len(pending) > 0:
             logger.info(f"{len(pending)} pending atlas precomputed entries")
@@ -128,13 +145,16 @@ def process_atlas_pending(client: RemoteDataClient, output_location: str) -> boo
                     save_atlas_precomputed(pend.skeletonId, reconstruction, output_location)
 
                     client.mark_atlas_generated(pend.id)
-                except Exception as ex:
-                    logger.error("error", None, ex, True)
+                except Exception:
+                    logger.exception(f"failed to generate atlas precomputed for entry {pend.id} "
+                                     f"(skeleton {pend.skeletonId})")
                     client.mark_atlas_failed_generate(pend.id)
 
             return True
-    except Exception as ex:
-        logger.error("process error", None, ex, True)
+    except TransportConnectionFailed as ex:
+        _note_unreachable(ex)
+    except Exception:
+        logger.exception("failed to process pending atlas precomputed entries")
 
     return False
 
@@ -147,4 +167,23 @@ def start(url: str, auth_key: str, output: str):
 
     client = RemoteDataClient(url, auth_key)
 
-    process_pending(client, output)
+    _schedule(client, output, 0)
+
+
+def _note_unreachable(ex: TransportConnectionFailed) -> None:
+    global graphql_unreachable
+
+    # Logged once per outage: every cycle fails both queries, and a full traceback for each buries everything else.
+    if not graphql_unreachable:
+        logger.warning(f"the GraphQL service is unreachable; retrying every {process_interval} seconds: {ex}")
+
+    graphql_unreachable = True
+
+
+def _note_reachable() -> None:
+    global graphql_unreachable
+
+    if graphql_unreachable:
+        logger.info("the GraphQL service is reachable again")
+
+    graphql_unreachable = False

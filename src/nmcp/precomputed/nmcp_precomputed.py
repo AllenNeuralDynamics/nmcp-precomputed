@@ -6,7 +6,7 @@ from typing import cast
 
 from typing_extensions import List
 
-from cloudvolume import CloudVolume
+from cloudvolume import CloudVolume, Skeleton
 from cloudfiles import CloudFiles
 
 from .nmcp_skeleton import vertex_attributes, SkeletonComponents
@@ -24,8 +24,8 @@ def ensure_bucket_folders(cloud_location: str):
         cf.touch("axon/temp.txt")
         cf.touch("dendrite/temp.txt")
         cf.touch("specimen/temp.txt")
-    except Exception as ex:
-        logger.error("could not create bucket folders", None, exc_info=False)
+    except Exception:
+        logger.exception("could not create bucket folders")
 
 
 def create_from_json_files(json_files: List[str], cloud_location: str, info: dict | None = None,
@@ -68,61 +68,42 @@ def create_from_reconstruction(reconstruction: PortalReconstruction, cloud_locat
 
 def create_from_skeleton_components(components: SkeletonComponents, properties: SegmentPropertyValues,
                                     cloud_location: str, skeleton_id: int,
-                                    cloud_files_info: dict | None = None) -> int | None:
+                                    cloud_files_info: dict | None = None) -> int:
     """
-    Add one or more neurons to the precomputed dataset.
+    Add or replace one skeleton in an incrementally maintained dataset, merging its segment properties with those
+    already recorded in `segment_properties/info.pickle`. Raises on any failure.
     """
     cv = _create_dataset_info(cloud_location, cloud_files_info)
 
-    # remove_skeleton(cloud_location, skeleton_id)
+    segment_info = _load_segment_info(cloud_location)
 
-    try:
-        cf = CloudFiles(cloud_location)
-    except Exception as ex:
-        logger.error("could not create cloud files", None, exc_info=False)
-        return None
+    _add_skeleton(cv, components, properties, skeleton_id, segment_info)
 
-    try:
-        existing = cast(bytes, cf.get("segment_properties/info.pickle"))
-    except Exception as ex:
-        logger.error("could not ask for get segment info", None, exc_info=False)
-        return None
-
-    try:
-        if existing is not None:
-            segment_info = pickle.loads(existing)
-        else:
-            segment_info = SegmentInfo()
-    except Exception as ex:
-        logger.error("could not get segment info", None, exc_info=False)
-        return None
-
-    try:
-        skeleton = components.create_skeleton(skeleton_id)
-    except Exception as ex:
-        logger.error("could not create skeleton", None, exc_info=False)
-        return None
-
-    try:
-        segment_info.append(skeleton_id, properties)
-    except Exception as ex:
-        logger.error("could not append segment info", None, exc_info=False)
-        return None
-
-    try:
-        # TODO: Could be left in an odd state segment_info is appended but skeleton upload fails.
-        cv.skeleton.upload(skeleton)
-    except Exception as ex:
-        logger.error("could not upload skeleton", None, exc_info=False)
-        return None
-
-    try:
-        _create_segment_properties(cloud_location, segment_info)
-    except Exception as ex:
-        logger.error(f"could create segment properties {skeleton_id}", None, exc_info=True)
-        logger.exception(ex, exc_info=True)
+    _create_segment_properties(cloud_location, segment_info)
 
     return skeleton_id
+
+
+def create_standalone_from_reconstruction(reconstruction: PortalReconstruction, cloud_location: str,
+                                          skeleton_id: int, cloud_files_info: dict) -> Skeleton:
+    """
+    Write a complete dataset holding only this skeleton (full structure). Existing content at the location is
+    overwritten but not cleared, and `segment_properties/info.pickle` is neither read nor written. Raises on any
+    failure.
+    """
+    components = SkeletonComponents(reconstruction["nodes"])
+
+    properties = extract_reconstruction_properties(reconstruction)
+
+    cv = _create_dataset_info(cloud_location, cloud_files_info)
+
+    segment_info = SegmentInfo()
+
+    skeleton = _add_skeleton(cv, components, properties, skeleton_id, segment_info)
+
+    _put_segment_properties_info(cloud_location, segment_info)
+
+    return skeleton
 
 
 def remove_skeleton(cloud_location: str, skeleton_id: int) -> bool:
@@ -177,7 +158,7 @@ def extract_reconstruction_properties(data: PortalReconstruction) -> SegmentProp
     return SegmentPropertyValues(label, genotype, soma_atlas_structure_id)
 
 
-def _default_cloudvolume_info() -> dict:
+def default_cloudvolume_info() -> dict:
     info = CloudVolume.create_new_info(
         num_channels=1,
         layer_type="segmentation",
@@ -225,7 +206,7 @@ def _extract_resolution(info_dict: dict) -> List[float]:
 
 def _prepare_cloudvolume_info(info: dict | None) -> dict:
     if info is None:
-        return _default_cloudvolume_info()
+        return default_cloudvolume_info()
 
     if not isinstance(info, dict):
         raise ValueError("CloudVolume info must be provided as a dict.")
@@ -263,12 +244,36 @@ def _create_dataset_info(cloud_location: str, info: dict | None = None) -> Cloud
     return cv
 
 
+def _load_segment_info(cloud_location: str) -> SegmentInfo:
+    existing = cast(bytes, CloudFiles(cloud_location).get("segment_properties/info.pickle"))
+
+    if existing is not None:
+        return pickle.loads(existing)
+
+    return SegmentInfo()
+
+
+def _add_skeleton(cv: CloudVolume, components: SkeletonComponents, properties: SegmentPropertyValues,
+                  skeleton_id: int, segment_info: SegmentInfo) -> Skeleton:
+    skeleton = components.create_skeleton(skeleton_id)
+
+    segment_info.append(skeleton_id, properties)
+
+    cv.skeleton.upload(skeleton)
+
+    return skeleton
+
+
+def _put_segment_properties_info(cloud_location: str, segment_property_info: SegmentInfo):
+    # The required precomputed segment properties info file.
+    CloudFiles(cloud_location).put_json("segment_properties/info", segment_property_info.as_dict())
+
+
 def _create_segment_properties(cloud_location: str, segment_property_info: SegmentInfo):
     """ One per dataset"""
-    cf = CloudFiles(cloud_location)
+    _put_segment_properties_info(cloud_location, segment_property_info)
 
-    # The required precomputed segment properties info file.
-    cf.put_json("segment_properties/info", segment_property_info.as_dict())
+    cf = CloudFiles(cloud_location)
 
     # Stash the internal representation of the segment properties info for additional context that would need to be
     # rebuilt if deserializing `info`.
