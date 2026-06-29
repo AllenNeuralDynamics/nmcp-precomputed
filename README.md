@@ -40,7 +40,7 @@ Define an `mc` alias for the server, create the bucket, and allow public access 
 following assumes the username/password defined in `docker-compose.yml`.  This is performed in the container after
 attaching above, not on the host (unless you choose to install the `mc` tools on your host machine).
 ```bash
-mc alias set myminio http://localhost:9000 minio_root_user minio_root_password
+mc alias set myminio http://localhost:9000 root password
 mc mb myminio/aind-neuron-morphology-community-portal-local/ngv01/
 mc anonymous set public myminio/aind-neuron-morphology-community-portal-local/ngv01
 ```
@@ -56,8 +56,8 @@ Add the username and password as a secrets file in `~/.cloudvolume/secrets/minio
 in the compose file).
 ```json
 {
-	"AWS_ACCESS_KEY_ID": "minio_root_user",
-	"AWS_SECRET_ACCESS_KEY": "minio_root_password"
+	"AWS_ACCESS_KEY_ID": "root",
+	"AWS_SECRET_ACCESS_KEY": "password"
 }
 ```
 
